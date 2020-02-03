@@ -140,7 +140,3 @@ def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj):
         circ.cx(qreg[cntrl], qreg[trgt])
 
     return circ
-
-
-if __name__ == '__main__'
-print('done')
