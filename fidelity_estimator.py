@@ -146,8 +146,8 @@ def estimate_fidelity(settings, chi_dict, length, approx_V, nqubits):
 
 if __name__ == '__main__':
 
-    t = 2.5
-    nqubits = 4
+    t = 100
+    nqubits = 3
 
     hamiltonian = None
     for i in range(nqubits):
@@ -160,7 +160,7 @@ if __name__ == '__main__':
 
     U = (-1j*t*hamiltonian).expm()
 
-    tsteps = 10
+    tsteps = 1
     V = None
     for k in range(tsteps):
         for j in range(nqubits):
@@ -178,8 +178,8 @@ if __name__ == '__main__':
     probs = [prob_dict[key] for key in prob_dict]
     keys = [key for key in prob_dict]
 
-    length = get_length(0.1, 0.05)
-
+    # length = get_length(0.1, 0.05)
+    length = 5000
     print(length)
 
     settings = select_settings(length, probs, keys)

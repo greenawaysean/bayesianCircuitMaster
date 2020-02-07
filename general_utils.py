@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Union
 
 
 class GateObj:
@@ -6,7 +6,7 @@ class GateObj:
     intermediary between qiskit and the optimisation algorithm
     """
 
-    def __init__(self, name, qubits: List, parameterise: bool = None, params: List = None):
+    def __init__(self, name, qubits: Union[int, List], parameterise: bool = None, params: List = None):
         self.name = name
         self.qubits = qubits
         self.parameterise = parameterise

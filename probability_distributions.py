@@ -1,5 +1,5 @@
 import numpy as np
-from qutip import sigmax, sigmay, sigmaz, qeye, basis, gate_expand_1toN, Qobj
+from qutip import sigmax, sigmay, sigmaz, qeye, basis, gate_expand_1toN, Qobj, tensor
 import copy
 import itertools
 
@@ -25,34 +25,33 @@ class ChiProbDist(ProbDist):
 
     def __init__(self, nqubits: int, U: Qobj):
         super().__init__(nqubits)
-        self.tens_ops = get_tensored_ops()
+        self.tens_ops = self.get_tensored_ops()
         self.U = U
 
     def get_probabilities(self):
         d = 2**self.nqubits
-        input_states = generate_input_states()
-        observables = generate_observables()
+        input_states = self.generate_input_states()
+        observables = self.generate_observables()
         probabilities = {}
         for _state_idx in self.pauli_strings:
             for _obs_idx in self.pauli_strings:
                 _state = input_states[_state_idx]
                 _obs = observables[_obs_idx]
-                chi = (self.U * _state * self.U.dag() * _obs / np.sqrt(d)).tr()
-                chi_dict[_state_idx, _obs_idx] = chi
-                probabilities[(_state_idx, _obs_idx)] = np.abs(chi**2 / d**2)
-
+                chi = (self.U * _state * self.U.dag() * _obs).tr()
+                probabilities[(_state_idx, _obs_idx)] = np.abs((1/d**3)*chi**2)
+        print('probs:', np.sum([probabilities[k] for k in probabilities]))
         return probabilities
 
     def get_chi_dict(self):
         d = 2**self.nqubits
-        input_states = generate_input_states()
-        observables = generate_observables()
+        input_states = self.generate_input_states()
+        observables = self.generate_observables()
         chi_dict = {}
         for _state_idx in self.pauli_strings:
             for _obs_idx in self.pauli_strings:
                 _state = input_states[_state_idx]
                 _obs = observables[_obs_idx]
-                chi = (self.U * _state * self.U.dag() * _obs / np.sqrt(d)).tr()
+                chi = np.abs((self.U * _state * self.U.dag() * _obs).tr())
                 chi_dict[_state_idx, _obs_idx] = chi
 
         return chi_dict
