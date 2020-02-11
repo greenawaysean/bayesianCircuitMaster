@@ -37,12 +37,11 @@ class qCirc:
     def apply_V(self):
         for _gate in self.V:
             apply_gate(self.qc, self.qreg, _gate)
-            if _gate.name is not
 
     def rotate_meas_basis(self):
         for _gate in self.meas_basis:
             apply_gate(self.qc, self.qreg, _gate)
-            self.qc.measure(self.qreg[_gate.cntrl], creg[_gate.cntrl])
+            self.qc.measure(self.qreg[_gate.qubits], self.creg[_gate.qubits])
 
     def build_circuit(self):
         self.apply_init_state()
@@ -60,18 +59,18 @@ class EstimateCircuits:
     prob_dist -- probability distribution object
     prob_dict -- probability distribution from which the measurement settings
     should be chosen
-    U -- ideal unitary operator
+    V -- ideal unitary operator
     nqubits -- number of qubits
     length -- number of measurement settings to select from
     settings -- measurement settings in the IBMQ format (back-to-front qubits)
     qutip_settings -- settings in the more usual format (reversed wrt qiskit)
     """
 
-    def __init__(self, prob_dist: ProbDist, U: List[GateObj], nqubits: int,
+    def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
                  length: int):
         self.prob_dist = prob_dist
         self.prob_dict = self.prob_dist.get_probabilities()
-        self.U = U
+        self.V = V
         self.nqubits = nqubits
         self.length = length
         self.settings = None
@@ -87,6 +86,10 @@ class EstimateCircuits:
         ideal_chi = [chi_dict[i] for i in self.qutip_settings]
         fidelity = 0
         for i, _chi in enumerate(ideal_chi):
+            if self.settings[i][1] == '000':
+                fidelity += 1
+                expects.insert(0, 1)  # needed for correct indexing of expects
+                continue
             fidelity += np.abs(expects[i]/_chi)
         fidelity /= self.length
 
@@ -94,13 +97,15 @@ class EstimateCircuits:
 
     def generate_circuits(self):
         """Generate a list of circuits which can be used to estimate the fidelity"""
-        probs = [np.abs(self.prob_dict[key]) for key in self.prob_dict]
+        probs = [self.prob_dict[key] for key in self.prob_dict]
         keys = [key for key in self.prob_dict]
         self.settings, self.qutip_settings = self.select_settings(probs, keys)
         circs = []
         for _setting in self.settings:
+            if _setting[1] == '0'*self.nqubits:
+                continue
             init_state, observ = self.parse_setting(_setting)
-            _circ = qCirc(self.nqubits, init_state, self.U, observ).build_circuit()
+            _circ = qCirc(self.nqubits, init_state, self.V, observ).build_circuit()
             circs.append(_circ)
 
         return circs
@@ -126,13 +131,11 @@ class EstimateCircuits:
                 continue
             elif _op == '1':
                 _s = GateObj(name='X', qubits=i, parameterise=False, params=None)
-                init_state.append(_s)
             elif _op == '2':
                 _s = GateObj(name='Y', qubits=i, parameterise=False, params=None)
-                init_state.append(_s)
             elif _op == '3':
                 _s = GateObj(name='Z', qubits=i, parameterise=False, params=None)
-                init_state.append(_s)
+            init_state.append(_s)
         observe = []
         for i, _op in enumerate(_obs):
             # apply the gates which will rotate the qubits to the req'd basis
@@ -140,13 +143,11 @@ class EstimateCircuits:
                 continue
             elif _op == '1':
                 _o = GateObj(name='H', qubits=i, parameterise=False, params=None)
-                observe.append(_o)
             elif _op == '2':
                 _o = GateObj(name='HSdag', qubits=i, parameterise=False, params=None)
-                observe.append(_o)
             elif _op == '3':
                 _o = GateObj(name='I', qubits=i, parameterise=False, params=None)
-                observe.append(_o)
+            observe.append(_o)
 
         return init_state, observe
 
