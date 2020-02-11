@@ -7,21 +7,23 @@ from general_utils import GateObj
 
 
 class qCirc:
-    """Separates state preparation, unitary evolution and measurement into separate
+    """Quantum circuit class
+
+    Separates state preparation, unitary evolution and measurement into separate
     sections and applies them onto a qiskit circuit
+
+    Attributes:
+    nqubits -- number of qubits
+    input_state -- initial state settings for the simulation
+    V -- list of GateObj's defining the simulated unitary evolution
+    meas_basis -- settings for the measurement basis
     """
 
-    def __init__(self, nqubits: int, input_state: List[GateObj], U: List[GateObj],
+    def __init__(self, nqubits: int, input_state: List[GateObj], V: List[GateObj],
                  meas_basis: List[GateObj]):
-        """
-        inputs: nqubits: number of qubits
-                input_state: initial state settings for the simulation
-                U: list of GateObj's defining the unitary evolution
-                meas_basis: basis to measure in
-        """
         self.nqubits = nqubits
         self.input_state = input_state
-        self.U = U
+        self.V = V
         self.meas_basis = meas_basis
 
         self.qreg = QuantumRegister(self.nqubits)
@@ -32,21 +34,20 @@ class qCirc:
         for _gate in self.input_state:
             apply_gate(self.qc, self.qreg, _gate)
 
-    def apply_U(self):
-        for _gate in self.U:
+    def apply_V(self):
+        for _gate in self.V:
             apply_gate(self.qc, self.qreg, _gate)
+            if _gate.name is not
 
     def rotate_meas_basis(self):
         for _gate in self.meas_basis:
             apply_gate(self.qc, self.qreg, _gate)
+            self.qc.measure(self.qreg[_gate.cntrl], creg[_gate.cntrl])
 
     def build_circuit(self):
         self.apply_init_state()
-        self.apply_U()
+        self.apply_V()
         self.rotate_meas_basis()
-
-        for i in range(self.nqubits):
-            self.qc.measure(self.qreg[i], self.creg[i])
 
         return self.qc
 
@@ -54,6 +55,16 @@ class qCirc:
 class EstimateCircuits:
     """Generate a list of circuits which when run estimate the fidelity for a given
     unitary operator, given a precalculated probability distribution
+
+    Attributes:
+    prob_dist -- probability distribution object
+    prob_dict -- probability distribution from which the measurement settings
+    should be chosen
+    U -- ideal unitary operator
+    nqubits -- number of qubits
+    length -- number of measurement settings to select from
+    settings -- measurement settings in the IBMQ format (back-to-front qubits)
+    qutip_settings -- settings in the more usual format (reversed wrt qiskit)
     """
 
     def __init__(self, prob_dist: ProbDist, U: List[GateObj], nqubits: int,
@@ -67,6 +78,10 @@ class EstimateCircuits:
         self.qutip_settings = None
 
     def calculate_fidelity(self, num_shots: int, backend):
+        """Calculate the fidelity using the method in https://arxiv.org/abs/1104.4695
+
+        TODO: generalise this for different approaches to fidelity eastimation
+        """
         expects = self.run_circuits(num_shots, backend)
         chi_dict = self.prob_dist.get_chi_dict()
         ideal_chi = [chi_dict[i] for i in self.qutip_settings]
@@ -78,6 +93,7 @@ class EstimateCircuits:
         return fidelity
 
     def generate_circuits(self):
+        """Generate a list of circuits which can be used to estimate the fidelity"""
         probs = [np.abs(self.prob_dict[key]) for key in self.prob_dict]
         keys = [key for key in self.prob_dict]
         self.settings, self.qutip_settings = self.select_settings(probs, keys)
@@ -90,6 +106,7 @@ class EstimateCircuits:
         return circs
 
     def select_settings(self, probs, keys):
+        """Choose a set of settings given a probability distribution"""
         choices = np.random.choice([i for i in range(len(keys))], self.length, p=probs)
         qutip_settings = [keys[i] for i in choices]
         # qutip and qiskit use mirrored qubit naming schemes
@@ -101,6 +118,7 @@ class EstimateCircuits:
         return settings, qutip_settings
 
     def parse_setting(self, setting):
+        """Convert setting into a list of GateObj's for easier circuit conversion"""
         _state, _obs = setting
         init_state = []
         for i, _op in enumerate(_state):
@@ -119,7 +137,7 @@ class EstimateCircuits:
         for i, _op in enumerate(_obs):
             # apply the gates which will rotate the qubits to the req'd basis
             if _op == '0':
-                _o = GateObj(name='Z', qubits=i, parameterise=False, params=None)
+                continue
             elif _op == '1':
                 _o = GateObj(name='H', qubits=i, parameterise=False, params=None)
                 observe.append(_o)
@@ -133,6 +151,11 @@ class EstimateCircuits:
         return init_state, observe
 
     def run_circuits(self, num_shots: int, backend):
+        """Run circuits on a real (IBMQ) or simulated (Aer) qiskit backend
+
+        NOTE: Have seen transpile used in other code, but doesn't seem to work here,
+        need to investigate why/if it is needed
+        """
         circs = self.generate_circuits()
         # qjobs = [transpile(c, optimization_level=2) for c in circs]
         results = execute(circs, backend=backend, shots=num_shots).result()
@@ -143,9 +166,10 @@ class EstimateCircuits:
 
 
 def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj):
-    """Applies a gate to a quantum circuit. More complicated gates such as RXX gates
-    should be decomposed into single qubit gates and CNOTs prior to calling this
-    function.
+    """Applies a gate to a quantum circuit.
+
+    More complicated gates such as RXX gates should be decomposed into single qubit
+    gates and CNOTs prior to calling this function.
     """
     if not isinstance(gate.qubits, list):
         q = gate.qubits
@@ -179,13 +203,19 @@ def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj):
     return circ
 
 
-def generate_expectation(counts_dict, nqubits):
-    """Generate the expectation value for a Pauli string operator given a dictionary of
-    the counts from the machine
+def generate_expectation(counts_dict, N):
+    """Generate the expectation value for a Pauli string operator
+
+    Arguments:
+    counts_dict -- dictionary of counts generated from the machine (or qasm simulator)
+    N -- number of qubits being measured (note - NOT total number of qubits)
+
+    Returns:
+    expect -- expectation value of the circuit in the measured basis
     """
     total_counts = 0
 
-    bitstrings = [''.join(i) for i in itertools.product('01', repeat=nqubits)]
+    bitstrings = [''.join(i) for i in itertools.product('01', repeat=N)]
 
     expect = 0
     # add any missing counts to dictionary to avoid errors
