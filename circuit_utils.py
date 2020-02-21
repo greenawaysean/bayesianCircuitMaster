@@ -13,10 +13,11 @@ class qCirc:
     sections and applies them onto a qiskit circuit
 
     Attributes:
-    nqubits -- number of qubits
-    input_state -- initial state settings for the simulation
-    V -- list of GateObj's defining the simulated unitary evolution
-    meas_basis -- settings for the measurement basis
+    -----------
+    nqubits: number of qubits
+    input_state: initial state settings for the simulation
+    V: list of GateObj's defining the simulated unitary evolution
+    meas_basis: settings for the measurement basis
     """
 
     def __init__(self, nqubits: int, input_state: List[GateObj], V: List[GateObj],
@@ -56,20 +57,21 @@ class EstimateCircuits:
     unitary operator, given a precalculated probability distribution
 
     Attributes:
-    prob_dist -- probability distribution object
-    prob_dict -- probability distribution from which the measurement settings
+    -----------
+    prob_dist: probability distribution object
+    prob_dict: probability distribution from which the measurement settings
     should be chosen
-    V -- ideal unitary operator
-    nqubits -- number of qubits
-    length -- number of measurement settings to select from
-    settings -- measurement settings in the IBMQ format (back-to-front qubits)
-    qutip_settings -- settings in the more usual format (reversed wrt qiskit)
+    V: ideal unitary operator
+    nqubits: number of qubits
+    length: number of measurement settings to select from
+    settings: measurement settings in the IBMQ format (back-to-front qubits)
+    qutip_settings: settings in the more usual format (reversed wrt qiskit)
     """
 
     def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
                  length: int):
         self.prob_dist = prob_dist
-        self.prob_dict = self.prob_dist.get_probabilities()
+        self.prob_dict = self.prob_dist.probabilities
         self.V = V
         self.nqubits = nqubits
         self.length = length
@@ -82,18 +84,15 @@ class EstimateCircuits:
         TODO: generalise this for different approaches to fidelity eastimation
         """
         expects = self.run_circuits(num_shots, backend)
-        chi_dict = self.prob_dist.get_chi_dict()
+        chi_dict = self.prob_dist.chi_dict
         ideal_chi = [chi_dict[i] for i in self.qutip_settings]
+
         fidelity = 0
         for i, _chi in enumerate(ideal_chi):
-            if self.settings[i][1] == '000':
-                fidelity += 1
-                expects.insert(0, 1)  # needed for correct indexing of expects
-                continue
-            fidelity += np.abs(expects[i]/_chi)
+            fidelity += expects[i]/_chi
         fidelity /= self.length
 
-        return fidelity
+        return np.abs(fidelity)
 
     def generate_circuits(self):
         """Generate a list of circuits which can be used to estimate the fidelity"""
@@ -102,8 +101,6 @@ class EstimateCircuits:
         self.settings, self.qutip_settings = self.select_settings(probs, keys)
         circs = []
         for _setting in self.settings:
-            if _setting[1] == '0'*self.nqubits:
-                continue
             init_state, observ = self.parse_setting(_setting)
             _circ = qCirc(self.nqubits, init_state, self.V, observ).build_circuit()
             circs.append(_circ)
@@ -120,6 +117,9 @@ class EstimateCircuits:
             setting0 = _set[0][::-1]
             setting1 = _set[1][::-1]
             settings.append((setting0, setting1))
+
+        settings = [item for item in settings if item[1] != '0'*self.nqubits]
+        qutip_settings = [item for item in qutip_settings if item[1] != '0'*self.nqubits]
         return settings, qutip_settings
 
     def parse_setting(self, setting):
@@ -160,7 +160,7 @@ class EstimateCircuits:
         circs = self.generate_circuits()
         # qjobs = [transpile(c, optimization_level=2) for c in circs]
         results = execute(circs, backend=backend, shots=num_shots).result()
-        expects = [generate_expectation(results.get_counts(i), self.nqubits)
+        expects = [generate_expectation(results.get_counts(i))
                    for i in range(len(circs))]
 
         return expects
@@ -181,7 +181,8 @@ def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj):
             circ.h(qreg[q])
         elif gate.name == 'HSdag':
             circ.h(qreg[q])
-            circ.sdg(qreg[q])
+            circ.s(qreg[q])
+            circ.h(qreg[q])
         elif gate.name == 'X':
             circ.x(qreg[q])
         elif gate.name == 'Y':
@@ -204,18 +205,21 @@ def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj):
     return circ
 
 
-def generate_expectation(counts_dict, N):
+def generate_expectation(counts_dict):
     """Generate the expectation value for a Pauli string operator
 
-    Arguments:
-    counts_dict -- dictionary of counts generated from the machine (or qasm simulator)
-    N -- number of qubits being measured (note - NOT total number of qubits)
+    Parameters:
+    -----------
+    counts_dict: dictionary of counts generated from the machine (or qasm simulator)
+    N: number of qubits being measured (note - NOT total number of qubits)
 
     Returns:
-    expect -- expectation value of the circuit in the measured basis
+    --------
+    expect: expectation value of the circuit in the measured basis
     """
     total_counts = 0
-
+    key_len = [len(key) for key in counts_dict]
+    N = key_len[0]
     bitstrings = [''.join(i) for i in itertools.product('01', repeat=N)]
 
     expect = 0

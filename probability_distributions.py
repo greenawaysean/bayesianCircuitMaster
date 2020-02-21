@@ -1,5 +1,6 @@
 import numpy as np
 from qutip import sigmax, sigmay, sigmaz, qeye, basis, gate_expand_1toN, Qobj, tensor
+from scipy.sparse import csr_matrix, csc_matrix
 import copy
 import itertools
 
@@ -26,54 +27,40 @@ class ChiProbDist(ProbDist):
     def __init__(self, nqubits: int, U: Qobj):
         super().__init__(nqubits)
         self.tens_ops = self.get_tensored_ops()
-        self.U = U
+        self.U = csc_matrix(U.full())
+        self.probabilities, self.chi_dict = self.get_probs_and_chis()
 
-    def get_probabilities(self):
+    def get_probs_and_chis(self):
         d = 2**self.nqubits
-        input_states = self.generate_input_states()
-        observables = self.generate_observables()
+        input_states, observables = self.generate_states_observables()
         probabilities = {}
-        for _state_idx in self.pauli_strings:
-            for _obs_idx in self.pauli_strings:
-                _state = input_states[_state_idx]
-                _obs = observables[_obs_idx]
-                chi = (self.U * _state * self.U.dag() * _obs).tr()
-                probabilities[(_state_idx, _obs_idx)] = np.abs((1/d**3)*chi**2)
-        print('probs:', np.sum([probabilities[k] for k in probabilities]))
-        return probabilities
-
-    def get_chi_dict(self):
-        d = 2**self.nqubits
-        input_states = self.generate_input_states()
-        observables = self.generate_observables()
         chi_dict = {}
         for _state_idx in self.pauli_strings:
             for _obs_idx in self.pauli_strings:
                 _state = input_states[_state_idx]
                 _obs = observables[_obs_idx]
-                chi = np.abs((self.U * _state * self.U.dag() * _obs).tr())
+                # chi defined as (U*W_k*U^\dagger*W_k') for Pauli ops W_k, W_k'
+                _trace = np.dot(self.U, _state)
+                _trace = np.dot(_trace, np.conj(np.transpose(self.U)))
+                _trace = np.dot(_trace, _obs)
+                _trace = _trace.diagonal()
+                chi = _trace.sum()
                 chi_dict[_state_idx, _obs_idx] = chi
+                probabilities[(_state_idx, _obs_idx)] = np.abs((1/d**3)*chi**2)
+        return probabilities, chi_dict
 
-        return chi_dict
-
-    def generate_input_states(self):
-        init_state = tensor([basis(2, 0)] * self.nqubits)
+    def generate_states_observables(self):
+        init_state = csc_matrix(tensor([basis(2, 0)] * self.nqubits).full())
         input_states = {}
-        for i, _op in enumerate(self.tens_ops):
-            _state = self.pauli_strings[i]
-            _copy = copy.deepcopy(init_state)
-            state = _op * _copy
-            input_states[_state] = state * state.dag()
-
-        return input_states
-
-    def generate_observables(self):
         observables = {}
         for i, _op in enumerate(self.tens_ops):
             _state = self.pauli_strings[i]
-            observables[_state] = _op
+            observables[_state] = copy.deepcopy(_op)
+            _copy = copy.deepcopy(init_state)
+            state = np.dot(_op, _copy)
+            input_states[_state] = np.dot(state, np.conj(np.transpose(state)))
 
-        return observables
+        return input_states, observables
 
     def get_tensored_ops(self):
         tens_ops = []
@@ -89,7 +76,7 @@ class ChiProbDist(ProbDist):
                 if i == '3':
                     _ops.append(sigmaz())
             _op = tensor(_ops)
-            tens_ops.append(_op)
+            tens_ops.append(csc_matrix(_op.full()))
 
         return tens_ops
 

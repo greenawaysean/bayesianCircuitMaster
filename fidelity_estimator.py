@@ -3,6 +3,8 @@ import itertools
 import copy
 from qutip import basis, qeye, sigmax, sigmay, sigmaz, tensor, gate_expand_1toN, gate_expand_2toN, Qobj
 import matplotlib.pyplot as plt
+from os import path, getcwd, makedirs
+import pickle
 
 """Implementation of the process fidelity estimation proposed in
 10.1103/PhysRevLett.106.230501
@@ -146,32 +148,40 @@ def estimate_fidelity(settings, chi_dict, length, approx_V, nqubits):
 
 if __name__ == '__main__':
 
-    t = 0.1
-    nqubits = 3
+    t = 1.25
+    nqubits = 4
 
     hamiltonian = None
     for i in range(nqubits):
         if hamiltonian is None:
-            hamiltonian = 0.5*gate_expand_1toN(sigmax(), nqubits, i)
+            hamiltonian = 0.75*gate_expand_1toN(sigmax(), nqubits, i)
+            hamiltonian += 0.25*gate_expand_1toN(sigmaz(), nqubits, i)
         else:
-            hamiltonian += 0.5*gate_expand_1toN(sigmax(), nqubits, i)
-        if i < nqubits-2:
+            hamiltonian += 0.75*gate_expand_1toN(sigmax(), nqubits, i)
+            hamiltonian += 0.25*gate_expand_1toN(sigmaz(), nqubits, i)
+    for i in range(nqubits):
+        if i < nqubits-1:
             hamiltonian += gate_expand_2toN(tensor(sigmaz(), sigmaz()), nqubits, i, i+1)
 
     U = (-1j*t*hamiltonian).expm()
 
-    tsteps = 1
+    tsteps = 3
     V = None
     for k in range(tsteps):
         for j in range(nqubits):
             if V is None:
-                V = ((-1j*0.5*t/tsteps)*gate_expand_1toN(sigmax(), nqubits, j)).expm()
+                V = ((-1j*0.75*t/tsteps)*gate_expand_1toN(sigmax(), nqubits, j)).expm()
+                V *= ((-1j*0.25*t/tsteps)*gate_expand_1toN(sigmaz(), nqubits, j)).expm()
             else:
-                V *= ((-1j*0.5*t/tsteps)*gate_expand_1toN(sigmax(), nqubits, j)).expm()
-            if j < nqubits-2:
+                V *= ((-1j*0.75*t/tsteps)*gate_expand_1toN(sigmax(), nqubits, j)).expm()
+                V *= ((-1j*0.25*t/tsteps)*gate_expand_1toN(sigmaz(), nqubits, j)).expm()
+        for j in range(nqubits):
+            if j < nqubits-1:
                 V *= ((-1j*t/tsteps)*gate_expand_2toN(tensor(sigmaz(), sigmaz()), nqubits, j, j+1)).expm()
 
-    true_fidel = np.abs((1/2**nqubits)*(U*V.dag()).tr())**2
+    true_fidel = np.abs(((1/2**nqubits)*(U*V.dag()).tr()))**2
+
+    print(true_fidel)
 
     prob_dict, chi_dict = generate_prob_dict(nqubits, U)
 
@@ -186,3 +196,39 @@ if __name__ == '__main__':
 
     print("true fidelity", true_fidel)
     print("fidelity estimate", estimate_fidelity(settings, chi_dict, length, V, nqubits))
+
+    fidelities = []
+    for i in range(10000):
+        settings = select_settings(length, probs, keys)
+        fidelity = estimate_fidelity(settings, chi_dict, length, V, nqubits)
+        fidelities.append(fidelity)
+
+    # gaussian distribution for the fidelity estimations
+    import scipy.stats as stats
+    import matplotlib.pyplot as plt
+    import pylab as pl
+
+    fidelities = sorted(fidelities)
+    for i, f in enumerate(fidelities):
+        if f > 1:
+            fidelities[i] = 1
+    mean = np.mean(fidelities)
+    variance = np.var(fidelities)
+    print(mean, variance)
+
+    true_val = true_fidel
+
+    plt.figure(1)
+    plt.hist(fidelities, density=True, bins=20)
+    plt.xlim((min(true_val-0.05, min(fidelities)-0.05), max(true_val+0.05, max(fidelities)+0.05)))
+    fit = stats.norm.pdf(fidelities, mean, np.std(fidelities))
+    plt.plot(fidelities, fit, marker='o')
+    plt.vlines(true_val, 0, 5)
+    plt.show()
+
+    filename = path.join(getcwd(), "data")
+    if not path.exists(filename):
+        makedirs(filename)
+
+    with open(path.join(filename, 'fidelity_distribution_3tsteps_t125_75_iters.pickle'), 'wb') as f:
+        pickle.dump(fidelities, f)
