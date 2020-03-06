@@ -114,7 +114,8 @@ class EstimateCircuits:
     """
 
     def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
-                 length: int, num_shots: int, backend: str, init_layout: dict):
+                 length: int, num_shots: int, backend: str, init_layout: dict,
+                 noise_model=None):
         self.prob_dist = prob_dist
         self.prob_dict = self.prob_dist.probabilities
         self.chi_dict = self.prob_dist.chi_dict
@@ -124,10 +125,12 @@ class EstimateCircuits:
         self.num_shots = num_shots
         self.backend = backend
         self.init_layout = init_layout
+        self.noise_model = noise_model
         self.circuits = self.generate_circuits()
         self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
                                           initial_layout=self.init_layout,
-                                          skip_qobj_validation=False)
+                                          skip_qobj_validation=False,
+                                          noise_model=self.noise_model)
 
     def calculate_fidelity(self, params):
         probs = [self.prob_dict[key] for key in self.prob_dict]
@@ -136,11 +139,25 @@ class EstimateCircuits:
         ideal_chi = [self.chi_dict[i] for i in qutip_settings]
         expects = self.run_circuits(settings, params)
         fidelity = 0
-        for i, _chi in enumerate(ideal_chi):
-            fidelity += expects[i] / _chi
+
+        idx = 0
+        for i in range(len(settings)):
+            # if settings[1] != '0'*self.nqubits:
+            fidelity += (1/np.sqrt(2**self.nqubits))*expects[idx] / ideal_chi[idx]
+            idx += 1
+            # else:
+            #     fidelity += 1
+        # for i, _chi in enumerate(ideal_chi):
+        #     fidelity += expects[i] / _chi
+        #
+        # for i in range(int(self.length) - len(ideal_chi)):
+        #     fidelity += 1/(2**(2*self.nqubits))
+
+        fidelity += self.length - len(settings)
+
         fidelity /= self.length
 
-        return np.abs(fidelity)
+        return np.abs(fidelity)  # np.abs(fidelity)
 
     def generate_circuits(self):
         """Builds circuits for all possible combinations of input states and
@@ -183,8 +200,9 @@ class EstimateCircuits:
 
     def select_settings(self, probs, keys):
         """Choose a set of settings given a probability distribution"""
+        choices = []
         choices = np.random.choice(
-            [i for i in range(len(keys))], self.length, p=probs)
+            [i for i in range(len(keys))], self.length, p=probs, replace=True)
         qutip_settings = [keys[i] for i in choices]
         # qutip and qiskit use mirrored qubit naming schemes
         settings = []
@@ -209,11 +227,11 @@ class EstimateCircuits:
                 _s = GateObj(name='X', qubits=i,
                              parameterise=False, params=None)
             elif _op == '2':
-                _s = GateObj(name='Y', qubits=i,
+                _s = GateObj(name='H', qubits=i,
                              parameterise=False, params=None)
             elif _op == '3':
-                _s = GateObj(name='Z', qubits=i,
-                             parameterise=False, params=None)
+                _s = GateObj(name='U3', qubits=i,
+                             parameterise=True, params=[np.pi*0.5, np.pi*0.5, 0.0])
             init_state.append(_s)
         observe = []
         for i, _op in enumerate(_obs):
