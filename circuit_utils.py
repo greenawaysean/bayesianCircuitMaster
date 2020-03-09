@@ -170,10 +170,13 @@ class EstimateCircuits:
         settings = [key for key in self.prob_dict]
         circs = {}
         for _setting in settings:
-            init_state, observ = self.parse_setting(_setting)
-            _circ = qCirc(self.nqubits, init_state,
-                          self.V, observ, self.backend, self.init_layout)
-            circs[_setting] = _circ
+            _init_states, observ = self.parse_setting(_setting)
+            _circs = []
+            for init_state in _init_states:
+                _circ = qCirc(self.nqubits, init_state,
+                              self.V, observ, self.backend, self.init_layout)
+                _circs.append(_circ)
+            circs[_setting] = _circs
         return circs
 
     def run_circuits(self, settings, params):
@@ -188,7 +191,11 @@ class EstimateCircuits:
         --------
         expects: list of expectation values for each circuit in the list
         """
-        chosen_circs = [self.circuits[_setting] for _setting in settings]
+        chosen_circs = []
+        for _setting in settings:
+            _idx = np.random.choice([i for i in range(len(self.circuits[_setting]))])
+            chosen_circs.append(self.circuits[_setting][_idx])
+        # chosen_circs = [self.circuits[_setting] for _setting in settings]
         exec_circs = []
         exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
         results = self.quant_inst.execute(exec_circs, had_transpiled=True)
@@ -219,20 +226,39 @@ class EstimateCircuits:
     def parse_setting(self, setting):
         """Convert setting into a list of GateObj's for easier circuit conversion"""
         _state, _obs = setting
-        init_state = []
-        for i, _op in enumerate(_state):
-            if _op == '0':
-                continue
-            elif _op == '1':
-                _s = GateObj(name='X', qubits=i,
-                             parameterise=False, params=None)
-            elif _op == '2':
-                _s = GateObj(name='H', qubits=i,
-                             parameterise=False, params=None)
-            elif _op == '3':
-                _s = GateObj(name='U3', qubits=i,
-                             parameterise=True, params=[np.pi*0.5, np.pi*0.5, 0.0])
-            init_state.append(_s)
+        iter_list = [''.join(i) for i in itertools.product('01', repeat=len(_state))]
+        init_states = []
+        for _comb in iter_list:
+            init_state = []
+            for i, _op in enumerate(_state):
+                if _op == '0':
+                    if _comb[i] == '0':
+                        continue
+                    else:
+                        _s = GateObj(name='X', qubits=i,
+                                     parameterise=False, params=None)
+                elif _op == '1':
+                    if _comb[i] == '0':
+                        _s = GateObj(name='H', qubits=i,
+                                     parameterise=False, params=None)
+                    else:
+                        _s = GateObj(name='U3', qubits=i,
+                                     parameterise=True, params=[3*np.pi/2, 0, 0])
+                elif _op == '2':
+                    if _comb[i] == '0':
+                        _s = GateObj(name='U3', qubits=i,
+                                     parameterise=True, params=[np.pi/2, np.pi/2, 0])
+                    else:
+                        _s = GateObj(name='U3', qubits=i,
+                                     parameterise=True, params=[3*np.pi/2, np.pi/2, 0])
+                elif _op == '3':
+                    if _comb[i] == '0':
+                        continue
+                    else:
+                        _s = GateObj(name='X', qubits=i,
+                                     parameterise=False, params=None)
+                init_state.append(_s)
+            init_states.append(init_state)
         observe = []
         for i, _op in enumerate(_obs):
             # apply the gates which will rotate the qubits to the req'd basis
@@ -249,7 +275,7 @@ class EstimateCircuits:
                              parameterise=False, params=None)
             observe.append(_o)
 
-        return init_state, observe
+        return init_states, observe
 
 
 def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj,

@@ -52,16 +52,12 @@ class ChiProbDist(ProbDist):
         return probabilities, chi_dict
 
     def generate_states_observables(self):
-        init_state = csc_matrix(tensor([basis(2, 0)] * self.nqubits).full())
         input_states = {}
         observables = {}
         for i, _op in enumerate(self.tens_ops):
             _state = self.pauli_strings[i]
-            _input_state = copy.deepcopy(self.tens_states[i])
             observables[_state] = copy.deepcopy(_op)
-            _init_copy = copy.deepcopy(init_state)
-            state = np.dot(_input_state, _init_copy)
-            input_states[_state] = np.dot(state, np.conj(np.transpose(state)))
+            input_states[_state] = copy.deepcopy(_op)
 
         return input_states, observables
 
@@ -93,12 +89,10 @@ class ChiProbDist(ProbDist):
                 if i == '1':
                     _ops.append(sigmax())
                 if i == '2':
-                    _ops.append(snot())
+                    _ops.append(sigmay())
                 if i == '3':
-                    _x = 1/np.sqrt(2)
-                    u3 = [[_x, -_x], [1j*_x, 1j*_x]]
-                    _ops.append(Qobj(u3))
-            _op = tensor(_ops)
+                    _ops.append(sigmaz()
+            _op=tensor(_ops)
             tens_ops.append(csc_matrix(_op.full()))
 
         return tens_ops
