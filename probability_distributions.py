@@ -81,6 +81,120 @@ class ChiProbDist(ProbDist):
         return tens_ops
 
 
+class ZetaProbDist(ProbDist):
+    """Probability distribution based off the work in 10.1103/PhysRevLett.106.230501 but built using a spanning set of trace-1 hermitian matrices rather than pauli ops
+    """
+
+    def __init__(self, nqubits: int, U: Qobj):
+        super().__init__(nqubits)
+        self.tens_ops = self.get_tensored_ops()
+        self.tens_states = self.get_tensored_states()
+        self.U = csc_matrix(U.full())
+        self.w_rho_coeffs = [
+            (1, 1, 0, 0),
+            (-1, -1, 0.5, 0),
+            (-1, -1, 0, 0.5),
+            (1, -1, 0, 0)
+        ]
+        self.alphas = self.get_alphas()
+        self.u_trace = self.generate_u_trace()
+        self.probabilities, self.chi_dict = self.get_probs_and_chis()
+
+    def get_probs_and_chis(self):
+        d = 2**self.nqubits
+        observables = self.generate_observables()
+        input_states = self.generate_observables()
+        probabilities = {}
+        chi_dict = {}
+        gam = {}
+        for n in self.pauli_strings:
+            for j in self.pauli_strings:
+                _summand = []
+                for k in self.pauli_strings:
+                    _summand.append(self.alphas[(k, n)]*self.u_trace[(k, j)])
+                gam[(n, j)] = np.sum(_summand)
+        ########################
+        gam_sum = np.sum([i**2 for i in copy.deepcopy(gam).values()])
+        print(np.abs(gam_sum))
+        ########################
+        for n in self.pauli_strings:
+            for j in self.pauli_strings:
+                probabilities[(n, j)] = gam[(n, j)]**2/gam_sum
+                chi_dict[(n, j)] = gam_sum/(d**3*gam[(n, j)])
+
+        return probabilities, chi_dict
+
+    def generate_u_trace(self):
+        observables = self.generate_observables()
+        input_states = self.generate_observables()
+        u_trace = {}
+        for _state_idx in self.pauli_strings:
+            for _obs_idx in self.pauli_strings:
+                _state = input_states[_state_idx]
+                _obs = observables[_obs_idx]
+                _trace = np.dot(self.U, _state)
+                _trace = np.dot(_trace, np.conj(np.transpose(self.U)))
+                _trace = np.dot(_trace, _obs)
+                _trace = _trace.diagonal()
+                chi = _trace.sum()
+                u_trace[_state_idx, _obs_idx] = chi
+        return u_trace
+
+    def get_alphas(self):
+        alphas = {}
+        for w_idx in self.pauli_strings:
+            for rho_idx in self.pauli_strings:
+                prod = 1
+                for i in w_idx:
+                    for j in rho_idx:
+                        prod *= self.w_rho_coeffs[np.int(i)][np.int(j)]
+                alphas[(w_idx, rho_idx)] = prod
+        return alphas
+
+    def generate_observables(self):
+        observables = {}
+        for i, _op in enumerate(self.tens_ops):
+            _state = self.pauli_strings[i]
+            observables[_state] = copy.deepcopy(_op)
+        return observables
+
+    def get_tensored_ops(self):
+        tens_ops = []
+        for _state in self.pauli_strings:
+            _ops = []
+            for i in _state:
+                if i == '0':
+                    _ops.append(qeye(2))
+                if i == '1':
+                    _ops.append(sigmax())
+                if i == '2':
+                    _ops.append(sigmay())
+                if i == '3':
+                    _ops.append(sigmaz())
+            _op = tensor(_ops)
+            tens_ops.append(csc_matrix(_op.full()))
+
+        return tens_ops
+
+    def get_tensored_states(self):
+        tens_ops = []
+        for _state in self.pauli_strings:
+            _ops = []
+            for i in _state:
+                if i == '0':
+                    _ops.append(qeye(2))
+                if i == '1':
+                    _ops.append(sigmax())
+                if i == '2':
+                    _ops.append(sigmay())
+                if i == '3':
+                    _ops.append(sigmaz())
+            _op = tensor(_ops)
+            tens_ops.append(csc_matrix(_op.full()))
+
+        return tens_ops
+
+
 class AmpProbDist(ProbDist):
     """Probability distribution based on the amplitudes of the observables.
     TODO: implement this
