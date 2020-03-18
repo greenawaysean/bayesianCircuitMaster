@@ -114,12 +114,12 @@ class ZetaProbDist(ProbDist):
                     _summand.append(self.alphas[(k, n)]*self.u_trace[(k, j)])
                 gam[(n, j)] = np.sum(_summand)
         ########################
-        gam_sum = np.sum([i**2 for i in copy.deepcopy(gam).values()])
+        gam_sum = np.sum([np.abs(i) for i in copy.deepcopy(gam).values()])
         print(np.abs(gam_sum))
         ########################
         for n in self.pauli_strings:
             for j in self.pauli_strings:
-                probabilities[(n, j)] = gam[(n, j)]**2/gam_sum
+                probabilities[(n, j)] = np.abs(gam[(n, j)])/gam_sum
                 chi_dict[(n, j)] = gam_sum/(d**3*gam[(n, j)])
 
         return probabilities, chi_dict

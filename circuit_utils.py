@@ -137,7 +137,7 @@ class EstimateCircuits:
         expects = self.run_circuits(settings, params)
         fidelity = 0
         for i, _chi in enumerate(ideal_chi):
-            fidelity += expects[i]*_chi  # /(2**self.nqubits)
+            fidelity += expects[i]*_chi  # *probs[i]  # /(2**self.nqubits)
         fidelity /= self.length
 
         return np.abs(fidelity)
@@ -184,7 +184,7 @@ class EstimateCircuits:
     def select_settings(self, probs, keys):
         """Choose a set of settings given a probability distribution"""
         choices = np.random.choice(
-            [i for i in range(len(keys))], self.length, p=probs, replace=False)
+            [i for i in range(len(keys))], self.length, p=probs, replace=True)
         qutip_settings = [keys[i] for i in choices]
         # qutip and qiskit use mirrored qubit naming schemes
         settings = []
