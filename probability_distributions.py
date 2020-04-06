@@ -92,8 +92,8 @@ class ZetaProbDist(ProbDist):
         self.U = csc_matrix(U.full())
         self.w_rho_coeffs = [
             (1, 1, 0, 0),
-            (-1, -1, 0.5, 0),
-            (-1, -1, 0, 0.5),
+            (-0.5, -0.5, 1, 0),
+            (-0.5, -0.5, 0, 1),
             (1, -1, 0, 0)
         ]
         self.alphas = self.get_alphas()
