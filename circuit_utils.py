@@ -57,9 +57,15 @@ class qCirc:
     def generate_params_dict(self, params_list):
         params_dict = {}
         idx = 0
+        p_idx = 0
         for _gate in self.V:
             if _gate.parameterise:
-                params_dict[self.params[idx]] = params_list[idx]
+                if isinstance(self.params[idx], tuple):
+                    for i in range(3):
+                        params_dict[self.params[idx][i]] = params_list[p_idx]
+                        p_idx += 1
+                else:
+                    params_dict[self.params[idx]] = params_list[idx]
                 idx += 1
         return params_dict
 
@@ -295,8 +301,10 @@ def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj,
                 circ.rz(params, qreg[q])
         elif gate.name == 'U3':
             if parameterise:
-                circ.u3([i for i in param], qreg[q])
-            circ.u3(params[0], params[1], params[2], qreg[q])
+                _params = [i for i in param]
+                circ.u3(_params[0], _params[1], _params[2], qreg[q])
+            else:
+                circ.u3(params[0], params[1], params[2], qreg[q])
     else:
         cntrl = gate.qubits[0]
         trgt = gate.qubits[1]
