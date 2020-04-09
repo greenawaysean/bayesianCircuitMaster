@@ -140,7 +140,7 @@ class EstimateCircuits:
             fidelity += expects[i]*_chi  # *probs[i]  # /(2**self.nqubits)
         fidelity /= self.length
 
-        return np.abs(fidelity)
+        return np.real(fidelity)
 
     def generate_circuits(self):
         """Builds circuits for all possible combinations of input states and
