@@ -25,10 +25,38 @@ def get_pauli_basis(nqubits):
 
 def get_state_basis(nqubits):
     iters = [''.join(i) for i in itertools.product('0123', repeat=nqubits)]
-    s_ops = {'0': Qobj([[1, 0], [0, 0]]),
-             '1': Qobj([[0, 0], [0, 1]]),
-             '2': Qobj([[0.5, 0.5], [0.5, 0.5]]),
-             '3': Qobj([[0.5, -1j*0.5], [1j*0.5, 0.5]])}
+    # s_ops = {'0': Qobj([[1, 0], [0, 0]]),
+    #          '1': Qobj([[0, 0], [0, 1]]),
+    #          '2': Qobj([[0.5, 0.5], [0.5, 0.5]]),
+    #          '3': Qobj([[0.5, -1j*0.5], [1j*0.5, 0.5]])}
+
+    a = np.sqrt(1)
+    c = np.sqrt(0)
+    e = np.sqrt(0.5)
+    g = 1j*np.sqrt(0.5)
+
+    b, d, f, h = [np.sqrt(1 - np.abs(i)**2) for i in (a, c, e, g)]
+
+    # h = 1j*h
+
+    # A = Qobj([[1.0, 0.0]])
+    # B = Qobj([[0.57714519003, 0.81664155516]])
+    # C = Qobj([[0.57714519003, 0.471320746 + 0.66690343j]])
+    # D = Qobj([[0.57714519003, 0.471320746 - 0.66690343j]])
+    #
+    # A, B, C, D = [_op/(_op*_op.dag()).tr() for _op in (A, B, C, D)]
+
+    s_ops = {'0': Qobj([[a*np.conj(a), a*np.conj(b)], [np.conj(a)*b, b*np.conj(b)]]),
+             '1': Qobj([[c*np.conj(c), c*np.conj(d)], [np.conj(c)*d, d*np.conj(d)]]),
+             '2': Qobj([[e*np.conj(e), e*np.conj(f)], [np.conj(e)*f, f*np.conj(f)]]),
+             '3': Qobj([[g*np.conj(g), g*np.conj(h)], [np.conj(g)*h, h*np.conj(h)]])}
+
+    # s_ops = {'0': A.dag()*A,
+    #          '1': B.dag()*B,
+    #          '2': C.dag()*C,
+    #          '3': D.dag()*D
+    #          }
+
     basis = []
     for item in iters:
         _ops = []
@@ -78,19 +106,19 @@ def generate_rand_herm(nqubits):
 
 
 if __name__ == "__main__":
-    nqubits = 4
-    # U_herm_op = generate_rand_herm(nqubits)
-    # U = (-1j*U_herm_op).expm()
+    nqubits = 2
+    U_herm_op = generate_rand_herm(nqubits)
+    U = (-1j*U_herm_op).expm()
     # U = cnot()
-    H = None
-    for i in range(nqubits):
-        if H is None:
-            H = 0.5*gate_expand_1toN(sigmax(), nqubits, i)
-        else:
-            H += 0.5*gate_expand_1toN(sigmax(), nqubits, i)
-        if i < nqubits-1:
-            H += gate_expand_2toN(tensor(sigmaz(), sigmaz()), nqubits, i, i+1)
-    U = (-1j*H).expm()
+    # H = None
+    # for i in range(nqubits):
+    #     if H is None:
+    #         H = 0.5*gate_expand_1toN(sigmax(), nqubits, i)
+    #     else:
+    #         H += 0.5*gate_expand_1toN(sigmax(), nqubits, i)
+    #     if i < nqubits-1:
+    #         H += gate_expand_2toN(tensor(sigmaz(), sigmaz()), nqubits, i, i+1)
+    # U = (-1j*H).expm()
 
     F_list = []
     FOM_list = []
@@ -124,5 +152,5 @@ if __name__ == "__main__":
     plt.ylabel('$FOM$')
     plt.ylim(0.0, 1.0)
     plt.xlim(0.0, 1.0)
-    plt.savefig(path.join(filename, 'four_qubit_ising.png'))
+    # plt.savefig(path.join(filename, 'two_qubit_rand_max_dist_states.png'))
     plt.show()
