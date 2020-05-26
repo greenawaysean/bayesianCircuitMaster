@@ -1,5 +1,6 @@
 import numpy as np
-from qutip import sigmax, sigmay, sigmaz, qeye, basis, gate_expand_1toN, Qobj, tensor
+from qutip import (sigmax, sigmay, sigmaz, qeye, basis, gate_expand_1toN, Qobj, tensor,
+                   snot)
 from scipy.sparse import csr_matrix, csc_matrix
 import copy
 import itertools
@@ -27,6 +28,7 @@ class ChiProbDist(ProbDist):
     def __init__(self, nqubits: int, U: Qobj):
         super().__init__(nqubits)
         self.tens_ops = self.get_tensored_ops()
+        self.tens_states = self.get_tensored_states()
         self.U = csc_matrix(U.full())
         self.probabilities, self.chi_dict = self.get_probs_and_chis()
 
@@ -44,9 +46,9 @@ class ChiProbDist(ProbDist):
                 _trace = np.dot(_trace, np.conj(np.transpose(self.U)))
                 _trace = np.dot(_trace, _obs)
                 _trace = _trace.diagonal()
-                chi = _trace.sum()
+                chi = _trace.sum()/np.sqrt(d)
                 chi_dict[_state_idx, _obs_idx] = chi
-                probabilities[(_state_idx, _obs_idx)] = np.abs((1/d**3)*chi**2)
+                probabilities[(_state_idx, _obs_idx)] = (1/d**2)*np.abs(chi**2)
         return probabilities, chi_dict
 
     def generate_states_observables(self):
@@ -55,9 +57,10 @@ class ChiProbDist(ProbDist):
         observables = {}
         for i, _op in enumerate(self.tens_ops):
             _state = self.pauli_strings[i]
+            _input_state = copy.deepcopy(self.tens_states[i])
             observables[_state] = copy.deepcopy(_op)
-            _copy = copy.deepcopy(init_state)
-            state = np.dot(_op, _copy)
+            _init_copy = copy.deepcopy(init_state)
+            state = np.dot(_input_state, _init_copy)
             input_states[_state] = np.dot(state, np.conj(np.transpose(state)))
 
         return input_states, observables
@@ -75,6 +78,26 @@ class ChiProbDist(ProbDist):
                     _ops.append(sigmay())
                 if i == '3':
                     _ops.append(sigmaz())
+            _op = tensor(_ops)
+            tens_ops.append(csc_matrix(_op.full()))
+
+        return tens_ops
+
+    def get_tensored_states(self):
+        tens_ops = []
+        for _state in self.pauli_strings:
+            _ops = []
+            for i in _state:
+                if i == '0':
+                    _ops.append(qeye(2))
+                if i == '1':
+                    _ops.append(sigmax())
+                if i == '2':
+                    _ops.append(snot())
+                if i == '3':
+                    _x = 1/np.sqrt(2)
+                    u3 = [[_x, -_x], [1j*_x, 1j*_x]]
+                    _ops.append(Qobj(u3))
             _op = tensor(_ops)
             tens_ops.append(csc_matrix(_op.full()))
 
