@@ -45,7 +45,8 @@ class qCirc:
         self.creg = ClassicalRegister(self.nqubits)
         self.qc = QuantumCircuit(self.qreg, self.creg)
         self.build_circuit()
-        self.qc = transpile(self.qc, backend=self.backend, initial_layout=self.init_layout)
+        self.qc = transpile(self.qc, backend=self.backend,
+                            initial_layout=self.init_layout)
 
     def populate_circuits(self, params_list):
         circ = copy.deepcopy(self.qc)
@@ -65,7 +66,8 @@ class qCirc:
                         params_dict[self.params[idx][i]] = params_list[p_idx]
                         p_idx += 1
                 else:
-                    params_dict[self.params[idx]] = params_list[idx]
+                    params_dict[self.params[idx]] = params_list[p_idx]
+                    p_idx += 1
                 idx += 1
         return params_dict
 
@@ -117,6 +119,34 @@ class EstimateCircuits:
 
     Builds all possible circuits as parameterised qiskit circuits, selects subsets of
     them for fidelity estimation and runs them with a given set of parameters.
+
+    Parameters
+    ----------
+    prob_dist : ProbDist
+        Probability distribution over which measurement settings are sampled.
+    V : List[GateObj]
+        List of gate objects defining the ansatz.
+    nqubits : int
+        Number of qubits.
+    length : int
+        Number of measurement settings to sample from in the fidelity estimation.
+    num_shots : int
+        Number of shots to use in the IBMQ machines.
+    backend : str
+        Which IBMQ backend to use.
+    init_layout : dict
+        Qubit layout for the IBMQ machine.
+    noise_model : type
+        Only for use with simulators: noise model emulating one of the real devices.
+
+    Attributes
+    ----------
+    prob_dict : dict
+        Conversion of probability distribution to a callable form for convenience.
+    chi_dict : dict
+        Conversion of ideal expectation values to a callable form for convenience.
+    circuits : list
+        List of all possible circuits to sample from, prebuilt to lighten the computational cost during optimisation.
     """
 
     def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
@@ -138,7 +168,7 @@ class EstimateCircuits:
                                           skip_qobj_validation=False,
                                           noise_model=self.noise_model)
 
-    def calculate_fidelity(self, params):
+    def calculate_fidelity(self, params, eval_var=False):
         probs = [self.prob_dict[key] for key in self.prob_dict]
         keys = [key for key in self.prob_dict]
         settings, qutip_settings = self.select_settings(probs, keys)
@@ -147,23 +177,19 @@ class EstimateCircuits:
         fidelity = 0
 
         idx = 0
-        for i in range(len(settings)):
-            # if settings[1] != '0'*self.nqubits:
-            fidelity += (1/np.sqrt(2**self.nqubits))*expects[idx] / ideal_chi[idx]
-            idx += 1
-            # else:
-            #     fidelity += 1
-        # for i, _chi in enumerate(ideal_chi):
-        #     fidelity += expects[i] / _chi
-        #
-        # for i in range(int(self.length) - len(ideal_chi)):
-        #     fidelity += 1/(2**(2*self.nqubits))
+
+        evals = []
+        for i, _chi in enumerate(ideal_chi):
+            fidelity += expects[i] / _chi
+            evals.append(expects[i] / _chi)
 
         fidelity += self.length - len(settings)
 
         fidelity /= self.length
-
-        return np.abs(fidelity)  # np.abs(fidelity)
+        if eval_var:
+            return np.real(fidelity)/(np.real(np.std(evals))**2)
+        else:
+            return np.real(fidelity)
 
     def generate_circuits(self):
         """Builds circuits for all possible combinations of input states and
@@ -195,7 +221,6 @@ class EstimateCircuits:
         expects: list of expectation values for each circuit in the list
         """
         chosen_circs = [self.circuits[_setting] for _setting in settings]
-        exec_circs = []
         exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
         results = self.quant_inst.execute(exec_circs, had_transpiled=True)
         expects = [
@@ -230,14 +255,14 @@ class EstimateCircuits:
             if _op == '0':
                 continue
             elif _op == '1':
-                _s = GateObj(name='X', qubits=i,
-                             parameterise=False, params=None)
+                _s = GateObj(name='U3', qubits=i, parameterise=True,
+                             params=[np.arccos(-1/3), 0.0, 0.0])
             elif _op == '2':
-                _s = GateObj(name='H', qubits=i,
-                             parameterise=False, params=None)
+                _s = GateObj(name='U3', qubits=i, parameterise=True,
+                             params=[np.arccos(-1/3), 2*np.pi/3, 0.0])
             elif _op == '3':
-                _s = GateObj(name='U3', qubits=i,
-                             parameterise=True, params=[np.pi*0.5, np.pi*0.5, 0.0])
+                _s = GateObj(name='U3', qubits=i, parameterise=True,
+                             params=[np.arccos(-1/3), 4*np.pi/3, 0.0])
             init_state.append(_s)
         observe = []
         for i, _op in enumerate(_obs):
@@ -256,6 +281,160 @@ class EstimateCircuits:
             observe.append(_o)
 
         return init_state, observe
+
+
+class FlammiaEstimateCircuits(EstimateCircuits):
+    """Subclass of EstimateCircuits for implementation of the true fidelity estimation
+    given in Flammia et al.'s paper.
+
+    """
+
+    def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
+                 length: int, num_shots: int, backend: str, init_layout: dict,
+                 p_lenth: int, noise_model=None):
+
+        self.p_length = p_length
+        super().__init__(prob_dist, V, nqubits, length, num_shots, backend,
+                         init_layout, noise_model)
+
+    def calculate_fidelity(self, params, eval_var=False):
+        probs = [self.prob_dict[key] for key in self.prob_dict]
+        keys = [key for key in self.prob_dict]
+        settings, qutip_settings = self.select_settings(probs, keys)
+        expects = self.run_circuits(settings, params)
+
+        for i, _q in enumerate(qutip_settings):
+            if _q[1] == '0'*self.nqubits:
+                continue
+            else:
+                ideal_chi = self.chi_dict[(_q[0], _q[1])]
+        _expects = []
+        for i, exp in enumerate(expects):
+            if settings[i][1] == '0'*self.nqubits:
+                continue
+            else:
+                _e = 0
+                for j in range(self.p_length):
+                    _e += exp
+                _expects.append(_e)
+
+        fidelity = 0
+        for i, _chi in enumerate(ideal_chi):
+            fidelity += _expects[i] / _chi
+
+        fidelity += self.length - len(settings)
+        fidelity /= self.length
+
+        return np.real(fidelity)
+
+    def generate_circuits(self):
+        settings = [key for key in self.prob_dict]
+        bases = [''.join(i) for i in itertools.product('01',
+                                                       repeat=range(len(settings[0])))]
+        circs = {}
+        for _setting in settings:
+            for _base in bases:
+                _sett = (_setting[0], _setting[1], _base)
+                init_state, observ = self.parse_setting(_sett)
+                _circ = qCirc(self.nqubits, init_state,
+                              self.V, observ, self.backend, self.init_layout)
+                circs[_sett] = _circ
+        return circs
+
+    def parse_setting(self, setting):
+        _state, _obs, _base = setting
+        init_state = []
+        for i, _op in enumerate(_state):
+            if _op == '0':
+                if _base[i] == '0':
+                    continue
+                elif _base[i] == '1':
+                    _s = GateObj(name='X', qubits=i, parameterise=False, params=None)
+            elif _op == '1':
+                if _base[i] == '0':
+                    GateObj(name='H', qubits=i, parameterise=False, params=None)
+                elif _base[i] == '1':
+                    _s = GateObj(name='U3', qubits=i, parametrise=True,
+                                 params=[np.pi/2, np.pi, 0.0])
+            elif _op == '2':
+                if _base[i] == '0':
+                    _s = GateObj(name='U3', qubits=i, parametrise=True,
+                                 params=[np.pi/2, np.pi/2, 0.0])
+                elif _base[i] == '1':
+                    _s = GateObj(name='U3', qubits=i, parametrise=True,
+                                 params=[np.pi/2, 2*np.pi/3, 0.0])
+            elif _op == '3':
+                if _base[i] == '0':
+                    continue
+                elif _base[i] == '1':
+                    _s = GateObj(name='X', qubits=i, parameterise=False)
+            init_state.append(_s)
+
+        observe = []
+        for i, _op in enumerate(_obs):
+            # apply the gates which will rotate the qubits to the req'd basis
+            if _op == '0':
+                continue
+            elif _op == '1':
+                _o = GateObj(name='H', qubits=i,
+                             parameterise=False, params=None)
+            elif _op == '2':
+                _o = GateObj(name='HSdag', qubits=i,
+                             parameterise=False, params=None)
+            elif _op == '3':
+                _o = GateObj(name='I', qubits=i,
+                             parameterise=False, params=None)
+            observe.append(_o)
+
+        return init_state, observe
+
+    def select_settings(self):
+        # first choose which input states/observables to use
+        choices = np.random.choice(
+            [i for i in range(len(keys))], self.length/self.p_length, p=probs, replace=True)
+        qutip_settings = [keys[i] for i in choices]
+
+        # next choose which pauli eigenstates to input
+        p_choices = np.random.choice(
+            [''.join(i) for i in itertools.product('01', repeat=len(choices[0]))], self.p_length, replace=False
+        )
+
+        # qutip and qiskit use mirrored qubit naming schemes
+        settings = []
+        for _set in qutip_settings:
+            for _pset in p_choices:
+                setting0 = _set[0][::-1]
+                setting1 = _set[1][::-1]
+                setting2 = _pset[::-1]
+            settings.append((setting0, setting1, setting2))
+
+        settings = [item for item in settings if item[1] != '0' * self.nqubits]
+        qutip_settings = [
+            item for item in qutip_settings if item[1] != '0' * self.nqubits]
+
+        # next choose
+        return settings, qutip_settings
+
+    def run_circuits(self, settings, params):
+        """Choose a subset of <length> circuits for fidelity estimation and run them
+
+        Parameters:
+        -----------
+        params: list of parameters to populate the circuits with (intended to be
+        adapted through optimisation)
+
+        Returns:
+        --------
+        expects: list of expectation values for each circuit in the list
+        """
+        chosen_circs = [self.circuits[_setting] for _setting in settings]
+        exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
+        results = self.quant_inst.execute(exec_circs, had_transpiled=True)
+        expects = [
+            generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
+        ]
+
+        return expects
 
 
 def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj,
@@ -319,7 +498,6 @@ def generate_expectation(counts_dict):
     Parameters:
     -----------
     counts_dict: dictionary of counts generated from the machine (or qasm simulator)
-    N: number of qubits being measured (note - NOT total number of qubits)
 
     Returns:
     --------
