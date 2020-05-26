@@ -228,20 +228,6 @@ class FullProbDist(ProbDist):
                 print(p)
         return probabilities, chi_dict
 
-    # def generate_states_observables(self):
-    #     init_state = csc_matrix(tensor([basis(2, 0)] * self.nqubits).full())
-    #     input_states = {}
-    #     observables = {}
-    #     for i, _op in enumerate(self.tens_ops):
-    #         _state = self.pauli_strings[i]
-    #         _input_state = copy.deepcopy(self.tens_states[i])
-    #         observables[_state] = copy.deepcopy(_op)
-    #         _init_copy = copy.deepcopy(init_state)
-    #         state = np.dot(_input_state, _init_copy)
-    #         input_states[_state] = np.dot(state, np.conj(np.transpose(state)))
-    #
-    #     return input_states, observables
-
     def get_tensored_ops(self):
         tens_ops = []
         for _state in self.pauli_strings:
