@@ -412,7 +412,6 @@ class FlammiaEstimateCircuits(EstimateCircuits):
         qutip_settings = [
             item for item in qutip_settings if item[1] != '0' * self.nqubits]
 
-        # next choose
         return settings, qutip_settings
 
     def run_circuits(self, settings, params):
