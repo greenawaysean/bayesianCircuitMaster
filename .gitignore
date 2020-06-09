@@ -1,5 +1,5 @@
-/__pycache__/*
-/data/*
+*/__pycache__/*
+*/data/*
 /GPyOpt_Fork/*
 /CNOT_TEST_2/*
 alt_fom_expansion.py
