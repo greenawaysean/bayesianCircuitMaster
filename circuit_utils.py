@@ -150,14 +150,12 @@ class EstimateCircuits:
     """
 
     def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
-                 length: int, num_shots: int, backend: str, init_layout: dict,
-                 noise_model=None):
+                 num_shots: int, backend: str, init_layout: dict, noise_model=None):
         self.prob_dist = prob_dist
         self.prob_dict = self.prob_dist.probabilities
         self.chi_dict = self.prob_dist.chi_dict
         self.V = V
         self.nqubits = nqubits
-        self.length = length
         self.num_shots = num_shots
         self.backend = backend
         self.init_layout = init_layout
@@ -168,28 +166,64 @@ class EstimateCircuits:
                                           skip_qobj_validation=False,
                                           noise_model=self.noise_model)
 
-    def calculate_fidelity(self, params, eval_var=False):
+    def calculate_fidelity(self, params, length):
+        self.length = length
         probs = [self.prob_dict[key] for key in self.prob_dict]
         keys = [key for key in self.prob_dict]
         settings, qutip_settings = self.select_settings(probs, keys)
         ideal_chi = [self.chi_dict[i] for i in qutip_settings]
         expects = self.run_circuits(settings, params)
+
         fidelity = 0
-
-        idx = 0
-
-        evals = []
         for i, _chi in enumerate(ideal_chi):
             fidelity += expects[i] / _chi
-            evals.append(expects[i] / _chi)
 
         fidelity += self.length - len(settings)
-
         fidelity /= self.length
-        if eval_var:
-            return np.real(fidelity)/(np.real(np.std(evals))**2)
-        else:
-            return np.real(fidelity)
+
+        return np.real(fidelity)
+
+    def calculate_bulk_fidelity(self, params: List, temp_len: int):
+        self.length = temp_len
+        probs = [self.prob_dict[key] for key in self.prob_dict]
+        keys = [key for key in self.prob_dict]
+        settings = []
+        qutip_settings = []
+        ideal_chi = []
+        for i, _p in enumerate(params):
+            _sett, _q_sett = self.select_settings(probs, keys)
+            _chi = [self.chi_dict[i] for i in _q_sett]
+            for _l in [_sett, _q_sett]:
+                if len(_l) <= temp_len:
+                    _l += ['X']*np.int(temp_len - len(_l))
+            if len(_chi) <= temp_len:
+                _chi += [1000.0j]*np.int(temp_len - len(_chi))
+            settings += _sett
+            qutip_settings += _q_sett
+            ideal_chi += _chi
+        flat_params = [item for sublist in params for item in sublist]
+        expects = self.run_circuits(settings, flat_params)
+        idx = 0
+        reshaped_exp = []
+        for i, _s in enumerate(settings):
+            if _s != 'X':
+                reshaped_exp.append(expects[idx])
+                idx += 1
+            else:
+                reshaped_exp.append(1.0)
+        reshaped_exp = np.reshape(reshaped_exp, [-1, temp_len])
+        ideal_chi = np.reshape(ideal_chi, [-1, temp_len])
+
+        fidels = []
+        for i, _exp in enumerate(reshaped_exp):
+            _f = 0.0
+            for j, _chi in enumerate(ideal_chi[i]):
+                if _chi == 1000.0j:
+                    _f += 1.0
+                else:
+                    _f += _exp[j] / _chi
+            fidels.append(_f/temp_len)
+        return fidels
 
     def generate_circuits(self):
         """Builds circuits for all possible combinations of input states and
@@ -220,7 +254,7 @@ class EstimateCircuits:
         --------
         expects: list of expectation values for each circuit in the list
         """
-        chosen_circs = [self.circuits[_setting] for _setting in settings]
+        chosen_circs = [self.circuits[_s] for _s in settings if _s != 'X']
         exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
         results = self.quant_inst.execute(exec_circs, had_transpiled=True)
         expects = [
@@ -303,33 +337,22 @@ class FlammiaEstimateCircuits(EstimateCircuits):
         settings, qutip_settings = self.select_settings(probs, keys)
         expects = self.run_circuits(settings, params)
 
-        ideal_chi = []
-        for i, _q in enumerate(qutip_settings):
-            if _q[1] == '0'*self.nqubits:
-                continue
-            else:
-                ideal_chi.append(self.chi_dict[(_q[0], _q[1])])
+        ideal_chi = [self.chi_dict[_q] for _q in qutip_settings]
 
         _expects = []
         idx = 0
         _e = 0
+        count = 0
         for i in range(len(settings)):
-            _eig = self.generate_eigenvalue(settings[i][1], settings[i][2])
+            _eig = self.generate_eigenvalue(settings[i][0], settings[i][2])
             _e += _eig * expects[i]
             idx += 1
             if idx == self.p_length:
+                # print(_e, ideal_chi[count])
+                count += 1
                 _expects.append((2**self.nqubits)*_e/self.p_length)
                 _e = 0
                 idx = 0
-        # for i, exp in enumerate(expects):
-        #     if settings[i][1] == '0'*self.nqubits:
-        #         continue
-        #     else:
-        #         _e = 0
-        #         for j in range(self.p_length):
-        #             # _eig = self.generate_eigenvalue(settings[i][2])
-        #             _e += exp
-        #         _expects.append(_e)
 
         fidelity = 0
         for i, _chi in enumerate(ideal_chi):
@@ -373,14 +396,14 @@ class FlammiaEstimateCircuits(EstimateCircuits):
                     GateObj(name='H', qubits=i, parameterise=False, params=None)
                 elif _base[i] == '1':
                     _s = GateObj(name='U3', qubits=i, parameterise=True,
-                                 params=[np.pi/2, np.pi, 0.0])
+                                 params=[np.pi, np.pi, 0.0])
             elif _op == '2':
                 if _base[i] == '0':
                     _s = GateObj(name='U3', qubits=i, parameterise=True,
-                                 params=[np.pi/2, np.pi/2, 0.0])
+                                 params=[np.pi, np.pi/2, 0.0])
                 elif _base[i] == '1':
                     _s = GateObj(name='U3', qubits=i, parameterise=True,
-                                 params=[np.pi/2, 3*np.pi/4, 0.0])
+                                 params=[np.pi, 3*np.pi/4, 0.0])
             elif _op == '3':
                 if _base[i] == '0':
                     continue
@@ -454,10 +477,10 @@ class FlammiaEstimateCircuits(EstimateCircuits):
 
         return expects
 
-    def generate_eigenvalue(self, op: str, base: str):
+    def generate_eigenvalue(self, state_in: str, base: str):
         test = True
         for i, _b in enumerate(base):
-            if op[i] == '0':
+            if state_in[i] == '0':
                 continue
             else:
                 if test:
