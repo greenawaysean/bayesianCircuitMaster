@@ -15,3 +15,6 @@ real_CCNOT_bayesian_optimisation.py
 real_CNOT_bayesian_optimisation.py
 real_toffoli_bayesian_optimisation.py
 testing_ordering_prob_dists.py
+3q_CNOT_BO.py
+bayesian_optimisation.py
+circuit_utils_cluster.py
