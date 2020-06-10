@@ -5,7 +5,6 @@ CNOT_TEST_2/
 alt_fom_expansion.py
 alt_fom_expansion_different_unitaries.py
 BO_submission_batch.pbs
-CNOT_testing_fidelity.py
 fidelity_estimator.py
 plotter_params.py
 probability_distributions.py

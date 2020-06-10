@@ -6,6 +6,7 @@ from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit, execute
 from qiskit.aqua import QuantumInstance
 from qiskit.circuit import Parameter
 from qiskit.compiler import transpile
+from qiskit.ignis.mitigation.measurement import complete_meas_cal, CompleteMeasFitter
 from probability_distributions import ProbDist
 from general_utils import GateObj
 
@@ -101,7 +102,9 @@ class qCirc:
         for _gate in self.meas_basis:
             apply_gate(self.qc, self.qreg, _gate)
             meas_idx.append(_gate.qubits)
-            self.qc.measure(self.qreg[_gate.qubits], self.creg[_gate.qubits])
+            # self.qc.measure(self.qreg[_gate.qubits], self.creg[_gate.qubits])
+        for i in range(self.nqubits):
+            self.qc.measure(self.qreg[i], self.creg[i])
 
     def build_circuit(self):
         """Builds seperate circuits for input states, observables and unitary
@@ -161,6 +164,13 @@ class EstimateCircuits:
         self.init_layout = init_layout
         self.noise_model = noise_model
         self.circuits = self.generate_circuits()
+        # TODO: add measurement error mitigation once qiskit adds varying qubit functionality
+        # qr = QuantumRegister(self.nqubits, name='qreg')
+        # meas_calibs, state_labels = complete_meas_cal(qr=qr, circlabel='mcal')
+        # job = execute(meas_calibs, backend=self.backend, shots=self.num_shots, initial_layout=self.init_layout,noise_model=self.noise_model)
+        # cal_results = job.result()
+        # meas_fitter = CompleteMeasFitter(cal_results, state_labels, circlabel='mcal')
+        # meas_filter = meas_fitter.filter
         self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
                                           initial_layout=self.init_layout,
                                           skip_qobj_validation=False,
@@ -254,12 +264,21 @@ class EstimateCircuits:
         --------
         expects: list of expectation values for each circuit in the list
         """
-        chosen_circs = [self.circuits[_s] for _s in settings if _s != 'X']
+        settings = [s for s in settings if s != 'X']
+        chosen_circs = [self.circuits[_s] for _s in settings]
         exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
         results = self.quant_inst.execute(exec_circs, had_transpiled=True)
-        expects = [
-            generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
-        ]
+        expects = []
+        for i, _c in enumerate(settings):
+            _ignore = []
+            for j, _b in enumerate(_c[1]):
+                if _b == '0':
+                    _ignore.append(j)
+            expects.append(generate_expectation(results.get_counts(i), _ignore))
+
+        # expects = [
+        #     generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
+        # ]
 
         return expects
 
@@ -550,7 +569,7 @@ def apply_gate(circ: QuantumCircuit, qreg: QuantumRegister, gate: GateObj,
     return circ
 
 
-def generate_expectation(counts_dict):
+def generate_expectation(counts_dict, _ignore=None):
     """Generate the expectation value for a Pauli string operator
 
     Parameters:
@@ -561,6 +580,8 @@ def generate_expectation(counts_dict):
     --------
     expect: expectation value of the circuit in the measured basis
     """
+    if _ignore is None:
+        _ignore = []
     total_counts = 0
     key_len = [len(key) for key in counts_dict]
     N = key_len[0]
@@ -572,7 +593,9 @@ def generate_expectation(counts_dict):
         if string not in counts_dict:
             counts_dict[string] = 0
         count = 0
-        for i in string:
+        for i, idx in enumerate(string):
+            if idx in _ignore:
+                continue
             if i == '1':
                 count += 1
         if count % 2 == 0:  # subtract odd product of -ve evalues, add even products

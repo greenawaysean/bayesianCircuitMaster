@@ -86,6 +86,7 @@ class BayesianOptimiser:
     def run_BO(self):
         init_time = time.time()
         initial_x, initial_y = self.init_obs()
+        # print(initial_x)
         initial_y = np.array(initial_y).reshape(len(initial_x), 1)
         self.method_bo.update(initial_x, initial_y)
         self.method_bo.optimiser._compute_results()
@@ -125,6 +126,7 @@ class BayesianOptimiser:
             for i, _name in enumerate(pathends):
                 with open(path.join(self.filename, _name), 'wb') as f:
                     pickle.dump(list_contents[i], f)
+            self.method_bo.optimiser._compute_results()
             self.method_bo.optimiser.plot_acquisition(path.join(self.filename,
                                                                 'acquisition_plot.png'))
             self.method_bo.optimiser.plot_convergence(path.join(self.filename,
