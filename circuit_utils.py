@@ -174,7 +174,9 @@ class EstimateCircuits:
         self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
                                           initial_layout=self.init_layout,
                                           skip_qobj_validation=False,
-                                          noise_model=self.noise_model)
+                                          noise_model=self.noise_model,
+                                          measurement_error_mitigation_cls=CompleteMeasFitter,
+                                          cals_matrix_refresh_period=30)
 
     def calculate_fidelity(self, params, length):
         self.length = length
