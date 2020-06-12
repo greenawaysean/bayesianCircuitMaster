@@ -164,13 +164,6 @@ class EstimateCircuits:
         self.init_layout = init_layout
         self.noise_model = noise_model
         self.circuits = self.generate_circuits()
-        # TODO: add measurement error mitigation once qiskit adds varying qubit functionality
-        # qr = QuantumRegister(self.nqubits, name='qreg')
-        # meas_calibs, state_labels = complete_meas_cal(qr=qr, circlabel='mcal')
-        # job = execute(meas_calibs, backend=self.backend, shots=self.num_shots, initial_layout=self.init_layout,noise_model=self.noise_model)
-        # cal_results = job.result()
-        # meas_fitter = CompleteMeasFitter(cal_results, state_labels, circlabel='mcal')
-        # meas_filter = meas_fitter.filter
         self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
                                           initial_layout=self.init_layout,
                                           skip_qobj_validation=False,
@@ -188,10 +181,14 @@ class EstimateCircuits:
 
         fidelity = 0
         for i, _chi in enumerate(ideal_chi):
+            # if np.abs(expects[i] - _chi) > 0.05:
+            #     print(expects[i], _chi, settings[i][1])
             fidelity += expects[i] / _chi
 
         fidelity += self.length - len(settings)
         fidelity /= self.length
+
+        print(fidelity)
 
         return np.real(fidelity)
 
@@ -270,17 +267,15 @@ class EstimateCircuits:
         chosen_circs = [self.circuits[_s] for _s in settings]
         exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
         results = self.quant_inst.execute(exec_circs, had_transpiled=True)
+        q_list = [i for i in range(self.nqubits)][::-1]
         expects = []
         for i, _c in enumerate(settings):
-            _ignore = []
+            _ig = []
             for j, _b in enumerate(_c[1]):
                 if _b == '0':
-                    _ignore.append(j)
+                    _ig.append(j)
+            _ignore = [q_list[i] for i in _ig]
             expects.append(generate_expectation(results.get_counts(i), _ignore))
-
-        # expects = [
-        #     generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
-        # ]
 
         return expects
 
@@ -596,9 +591,9 @@ def generate_expectation(counts_dict, _ignore=None):
             counts_dict[string] = 0
         count = 0
         for i, idx in enumerate(string):
-            if idx in _ignore:
+            if i in _ignore:
                 continue
-            if i == '1':
+            if idx == '1':
                 count += 1
         if count % 2 == 0:  # subtract odd product of -ve evalues, add even products
             expect += counts_dict[string]

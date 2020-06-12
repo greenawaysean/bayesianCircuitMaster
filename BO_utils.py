@@ -5,8 +5,30 @@ import pickle
 from os import path, getcwd, makedirs
 from qcoptim.optimisers import Method, MethodBO
 from qcoptim.utilities import gen_default_argsbo, get_best_from_bo
-from GPyOpt_fork.GPyOpt import GPyOpt
+from qcoptim.cost import CostInterface, Cost
+import GPyOpt
 from circuit_utils import EstimateCircuits
+
+class ProcessFidelityCost(Cost):
+    """ Wraps the BayesianOptimiser class to make it compatible with the qcoptim Batch
+    submission class.
+    """
+
+    def __init__(self):
+        pass
+
+    def meas_circuits(self):
+        pass
+
+    def qk_vars(self):
+        """ Returns parameter objects in the circuit"""
+        return self.ansatz.params
+
+    def evaluate_cost(self):
+        pass
+
+    def bind_params_to_meas(self):
+        pass
 
 
 class BayesianOptimiser:
