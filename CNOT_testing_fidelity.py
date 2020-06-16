@@ -49,12 +49,25 @@ class TrueFidelityEst(EstimateCircuits):
                 if params is not None:
                     exec_circs = [self.circuits[qc].populate_circuits(params) for qc in _keys]
                 else:
-                    exec_circs = [self.circuits[qc] for qc in _keys]
+                    exec_circs = [self.circuits[qc].qc for qc in _keys]
                 results = self.quant_inst.execute(
                     exec_circs, had_transpiled=True)
-                _exp = [
-                    generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
-                ]
+
+                q_list = [i for i in range(self.nqubits)][::-1]
+                _exp = []
+                for i, _c in enumerate(_keys):
+                    _ig = []
+                    for j, _b in enumerate(_c[1]):
+                        if _b == '0':
+                            _ig.append(j)
+                    _ignore = [q_list[i] for i in _ig]
+                    # _ignore = []
+                    _exp.append(generate_expectation(results.get_counts(i), _ignore))
+
+                # _exp = [
+                #     generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
+                # ]
+
                 expects += _exp
                 print(len(expects))
         else:
@@ -69,9 +82,23 @@ class TrueFidelityEst(EstimateCircuits):
             # for i, p in enumerate(perms):
             #     self.B_dict[p] = i
             results = self.quant_inst.execute(exec_circs, had_transpiled=True)
-            expects = [
-                generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
-            ]
+            keys = [key for key in self.circuits]
+            q_list = [i for i in range(self.nqubits)][::-1]
+            expects = []
+            for i, _c in enumerate(keys):
+                _ig = []
+                for j, _b in enumerate(_c[1]):
+                    if _b == '0':
+                        _ig.append(j)
+                _ignore = [q_list[i] for i in _ig]
+                # _ignore = []
+                expects.append(generate_expectation(results.get_counts(i), _ignore))
+
+            # expects = [
+            #     generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
+            # ]
+
+
         # pm = 0.1
         # for exp in expects:
         #     if exp > 1-pm:
@@ -134,46 +161,49 @@ if __name__ == "__main__":
     IBMQ.load_account()
     provider = IBMQ.get_provider(group='samsung', project='imperial')
 
-    nqubits = 2
+    nqubits = 3
     theta = 0.0
     # U = toffoli()
-    U = rz(theta, N=2, target=0)*rz(theta, N=2, target=1)*cnot(nqubits,
-                                                               0, nqubits-1)*rz(theta, N=2, target=0)*rz(theta, N=2, target=1)
+    U = rz(theta, N=3, target=0)*rz(theta, N=3, target=1)*cnot(nqubits,
+                                                               0, nqubits-1)*rz(theta, N=3, target=0)*rz(theta, N=3, target=1)
 
     device = provider.get_backend('ibmq_paris')
     properties = device.properties()
     noise_paris = noise.device.basic_device_noise_model(properties)
 
     backend = Aer.get_backend('qasm_simulator')
-    real_backend = provider.get_backend('ibmq_paris')
-    # backend = provider.get_backend('ibmq_qasm_simulator')
+    # real_backend = provider.get_backend('ibmq_paris')
+    real_backend = provider.get_backend('ibmq_qasm_simulator')
 
     prob_dist = ChiProbDist(nqubits=nqubits, U=U)
 
     qreg = QuantumRegister(nqubits, name='qreg')
     # init_layout = {12: qreg[0], 13: qreg[1]}
-    init_layout = {0: qreg[0], 1: qreg[1]}
-    ansatz = [GateObj('CNOT', [0, 1], False)]
+    init_layout = {0: qreg[0], 1: qreg[1], 2: qreg[2]}
+    ansatz = [GateObj('CNOT', [0, 1], False),
+              GateObj('CNOT', [1, 2], False),
+              GateObj('CNOT', [0, 1], False),
+              GateObj('CNOT', [1, 2], False)]
 
-    est_circ = TrueFidelityEst(prob_dist, ansatz, nqubits=nqubits, length=300,
-                               num_shots=8192, backend=backend, init_layout=init_layout, noise_model=noise_paris)
+    # est_circ = TrueFidelityEst(prob_dist, ansatz, nqubits=nqubits, length=300,
+    #                            num_shots=8192, backend=backend, init_layout=init_layout, noise_model=noise_paris)
+    #
+    # print(est_circ.calculate_FOM())
+    # print(est_circ.calculate_F())
+    #
+    # est_circ.plot_expects_errors(it=0)
 
-    print(est_circ.calculate_FOM())
-    print(est_circ.calculate_F())
-
-    est_circ.plot_expects_errors(it=0)
-
-    est_circ = TrueFidelityEst(prob_dist, ansatz, nqubits=nqubits, length=300,
+    est_circ = TrueFidelityEst(prob_dist, ansatz, nqubits=nqubits,
                                num_shots=8192, backend=real_backend, init_layout=init_layout, noise_model=None)
 
     est_circ.plot_expects_errors(it=1)
 
     plt.legend(markerscale=2.)
 
-    filename = path.join(getcwd(), 'data', 'noisy_expectations', 'CNOT')
-    if not path.exists(filename):
-        makedirs(filename)
-    plt.savefig(path.join(filename, 'noisy_expect_Paris.png'))
+    # filename = path.join(getcwd(), 'data', 'noisy_expectations', 'CNOT')
+    # if not path.exists(filename):
+    #     makedirs(filename)
+    # plt.savefig(path.join(filename, 'noisy_expect_Paris.png'))
     plt.show()
     print(est_circ.calculate_FOM())
     print(est_circ.calculate_F())

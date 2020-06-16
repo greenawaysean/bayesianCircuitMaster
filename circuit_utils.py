@@ -164,6 +164,10 @@ class EstimateCircuits:
         self.init_layout = init_layout
         self.noise_model = noise_model
         self.circuits = self.generate_circuits()
+        # self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
+        #                                   initial_layout=self.init_layout,
+        #                                   skip_qobj_validation=False,
+        #                                   noise_model=self.noise_model)
         self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
                                           initial_layout=self.init_layout,
                                           skip_qobj_validation=False,
@@ -275,6 +279,7 @@ class EstimateCircuits:
                 if _b == '0':
                     _ig.append(j)
             _ignore = [q_list[i] for i in _ig]
+            # _ignore = []
             expects.append(generate_expectation(results.get_counts(i), _ignore))
 
         return expects
@@ -343,8 +348,9 @@ class FlammiaEstimateCircuits(EstimateCircuits):
                  length: int, num_shots: int, backend: str, init_layout: dict,
                  p_length: int, noise_model=None):
 
+        self.length = length
         self.p_length = p_length
-        super().__init__(prob_dist, V, nqubits, length, num_shots, backend,
+        super().__init__(prob_dist, V, nqubits, num_shots, backend,
                          init_layout, noise_model)
 
     def calculate_fidelity(self, params, eval_var=False):
@@ -495,6 +501,7 @@ class FlammiaEstimateCircuits(EstimateCircuits):
 
     def generate_eigenvalue(self, state_in: str, base: str):
         test = True
+        # base = base[::-1]
         for i, _b in enumerate(base):
             if state_in[i] == '0':
                 continue

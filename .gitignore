@@ -17,3 +17,4 @@ testing_ordering_prob_dists.py
 3q_CNOT_BO.py
 bayesian_optimisation.py
 circuit_utils_cluster.py
+testing_batch_runner.py
