@@ -9,7 +9,7 @@ from qcoptim.utilities import (gen_default_argsbo, get_best_from_bo, Batch,
 from qcoptim.cost import CostInterface, Cost
 from qcoptim.ansatz import AnsatzInterface
 import GPyOpt
-from circuit_utils import EstimateCircuits
+from circuit_utils import EstimateCircuits, generate_expectation
 
 
 class ProcessFidelityAnsatz(AnsatzInterface):
@@ -59,6 +59,9 @@ class ProcessFidelityCost(Cost):
         self.verbose = True
         self._keep_res = False
         self._res = []
+        self.names = []
+        self.ran_settings = {}
+        self.idx = 0
         # invert fidelity to minimise
         self._wrap_cost = lambda x: 1-x
 
@@ -68,16 +71,30 @@ class ProcessFidelityCost(Cost):
 
     def evaluate_cost(self, results_obj, name=None, **kwargs):
         """ generates cost from qiskit result objects"""
-        q_list = [i for i in range(self.nqubits)][::-1]
+        sett_keys = [key for key in self.ran_settings.keys()]
+        costs = []
+        for j, _sett in enumerate(sett_keys):
+            results_dicts = []
+            for i in results_obj.to_dict()['results']:
+                if i['header']['name'].split('circuit')[0][-4:] == _sett:
+                    results_dicts.append(i['data']['counts'])
+            settings = self.ran_settings[_sett]
+            f = self.calculate_fidelity(results_dicts, settings)
+            costs.append(self._wrap_cost(f))
+        return costs
+
+    def calculate_fidelity(self, results_dicts, settings_in):
+        q_list = [i for i in range(self.est_circs.nqubits)][::-1]
+        settings, qutip_settings = settings_in
         expects = []
         for i, _c in enumerate(settings):
             _ig = []
             for j, _b in enumerate(_c[1]):
                 if _b == '0':
                     _ig.append(j)
-            _ignore = [q_list[i] for i in _ig]
-            expects.append(generate_expectation(results_obj.get_counts(i), _ignore))
-        ideal_chi = [self.est_circs.chi_dict[i] for i in self.qutip_settings]
+            _ignore = [q_list[k] for k in _ig]
+            expects.append(generate_expectation(results_dicts[i], _ignore))
+        ideal_chi = [self.est_circs.chi_dict[i] for i in qutip_settings]
         fidelity = 0
         for i, _chi in enumerate(ideal_chi):
             fidelity += expects[i] / _chi
@@ -85,7 +102,7 @@ class ProcessFidelityCost(Cost):
         fidelity += self.est_circs.length - len(settings)
         fidelity /= self.est_circs.length
 
-        return self._wrap_cost(np.real(fidelity))
+        return np.real(fidelity)
 
     def bind_params_to_meas(self, params=None, param_names=None):
         """ accepts some parameters and returns a list of circuits to be executed
@@ -94,11 +111,16 @@ class ProcessFidelityCost(Cost):
         probs = [self.est_circs.prob_dict[key] for key in self.est_circs.prob_dict]
         keys = [key for key in self.est_circs.prob_dict]
         self.settings, self.qutip_settings = self.est_circs.select_settings(probs, keys)
-        chosen_circs = [self.est_circs.circuits[_s] for _s in self.settings]
+        chosen_circs = [self.est_circs.circuits[_s] for _s in self. settings]
         exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
+        self.names.append(param_names)
+        self.ran_settings[param_names] = (self.settings, self.qutip_settings)
         exec_circs = prefix_to_names(exec_circs, param_names)
 
         return exec_circs
+
+    def reset(self):
+        self.ran_settings = {}
 
 
 class BayesianOptimiser:
@@ -106,6 +128,7 @@ class BayesianOptimiser:
     def __init__(self, circs: EstimateCircuits, init_params: List[float], nb_init: int, nb_iter: int, filename: str, init_len: int, length: int, incr: float = None, domain_default: List[tuple] = None, invert: bool = True):
         self.circs = circs
         self.init_params = init_params
+        self.nb_init = nb_init
         self.nb_init = nb_init
         self.nb_iter = nb_iter
         self.init_len = init_len
