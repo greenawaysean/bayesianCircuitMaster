@@ -101,6 +101,7 @@ class ProcessFidelityCost(Cost):
 
         fidelity += self.est_circs.length - len(settings)
         fidelity /= self.est_circs.length
+        # print(fidelity)
 
         return np.real(fidelity)
 
@@ -141,7 +142,8 @@ class BayesianOptimiser:
         self.invert = invert
         self.bo_args = self.generate_BO_args()
         self.method_bo = MethodBO(args=self.bo_args)
-        self.get_filename(filename)
+        self.filename = filename
+        # self.get_filename(filename)
         self.observed_params = []
         self.observed_FOMs = []
         self.predicted_params = []
