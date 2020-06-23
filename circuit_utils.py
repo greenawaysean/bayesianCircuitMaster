@@ -3,10 +3,10 @@ import numpy as np
 import copy
 import itertools
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit, execute
-from qiskit.aqua import QuantumInstance
+from qiskit.aqua.quantum_instance import QuantumInstance
 from qiskit.circuit import Parameter
 from qiskit.compiler import transpile
-from qiskit.ignis.mitigation.measurement import complete_meas_cal, CompleteMeasFitter
+# from qiskit.ignis.mitigation.measurement import complete_meas_cal, CompleteMeasFitter
 from probability_distributions import ProbDist
 from general_utils import GateObj
 
@@ -164,16 +164,16 @@ class EstimateCircuits:
         self.init_layout = init_layout
         self.noise_model = noise_model
         self.circuits = self.generate_circuits()
-        # self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
-        #                                   initial_layout=self.init_layout,
-        #                                   skip_qobj_validation=False,
-        #                                   noise_model=self.noise_model)
         self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
                                           initial_layout=self.init_layout,
                                           skip_qobj_validation=False,
-                                          noise_model=self.noise_model,
-                                          measurement_error_mitigation_cls=CompleteMeasFitter,
-                                          cals_matrix_refresh_period=30)
+                                          noise_model=self.noise_model)
+        # self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
+        #                                   initial_layout=self.init_layout,
+        #                                   skip_qobj_validation=False,
+        #                                   noise_model=self.noise_model,
+        #                                   measurement_error_mitigation_cls=CompleteMeasFitter,
+        #                                   cals_matrix_refresh_period=30)
 
     def calculate_fidelity(self, params, length):
         self.length = length
@@ -379,10 +379,10 @@ class FlammiaEstimateCircuits(EstimateCircuits):
         fidelity = 0
         for i, _chi in enumerate(ideal_chi):
             fidelity += _expects[i] / _chi
-
+        print('len compare', len(ideal_chi),  np.int(self.length/self.p_length))
         fidelity += np.int(self.length/self.p_length) - len(ideal_chi)
-        fidelity /= np.int(self.length/self.p_length)
-        # fidelity /= np.int(len(ideal_chi))
+        # fidelity /= np.int(self.length/self.p_length)
+        fidelity /= np.int(len(ideal_chi))
 
         print(fidelity)
 
@@ -490,12 +490,27 @@ class FlammiaEstimateCircuits(EstimateCircuits):
         --------
         expects: list of expectation values for each circuit in the list
         """
-        chosen_circs = [self.circuits[_setting] for _setting in settings]
+        # chosen_circs = [self.circuits[_setting] for _setting in settings]
+        # exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
+        # results = self.quant_inst.execute(exec_circs, had_transpiled=True)
+        # expects = [
+        #     generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
+        # ]
+
+        settings = [s for s in settings if s != 'X']
+        chosen_circs = [self.circuits[_s] for _s in settings]
         exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
         results = self.quant_inst.execute(exec_circs, had_transpiled=True)
-        expects = [
-            generate_expectation(results.get_counts(i)) for i in range(len(exec_circs))
-        ]
+        q_list = [i for i in range(self.nqubits)][::-1]
+        expects = []
+        for i, _c in enumerate(settings):
+            _ig = []
+            for j, _b in enumerate(_c[1]):
+                if _b == '0':
+                    _ig.append(j)
+            _ignore = [q_list[i] for i in _ig]
+            # _ignore = []
+            expects.append(generate_expectation(results.get_counts(i), _ignore))
 
         return expects
 

@@ -83,12 +83,12 @@ est_circ = EstimateCircuits(prob_dist, ansatz, nqubits=3, num_shots=512,
                             backend=backend, init_layout=init_layout)
 
 
-N = 2
+N = 4
 opt_kwargs = {
     'circs': est_circ,
     'init_params': _vals,
     'nb_init': 50,
-    'nb_iter': 50,
+    'nb_iter': 30,
     'filename': savepath,
     'init_len': 75,
     'length': 75,
@@ -96,11 +96,18 @@ opt_kwargs = {
     'invert': True
 }
 
-_optimiser = [BayesianOptimiser(**opt_kwargs).method_bo, BayesianOptimiser(**opt_kwargs).method_bo]
+_optimiser = [BayesianOptimiser(**opt_kwargs).method_bo,
+              BayesianOptimiser(**opt_kwargs).method_bo,
+              BayesianOptimiser(**opt_kwargs).method_bo,
+              BayesianOptimiser(**opt_kwargs).method_bo]
 
 _batch_handler = Batch(est_circ.quant_inst)
 wrapped_ansatz = ProcessFidelityAnsatz(est_circ, len(_vals))
 _cost_list = [ProcessFidelityCost(est_circ, wrapped_ansatz,
+                                  length=opt_kwargs['length']),
+              ProcessFidelityCost(est_circ, wrapped_ansatz,
+                                  length=opt_kwargs['length']),
+              ProcessFidelityCost(est_circ, wrapped_ansatz,
                                   length=opt_kwargs['length']),
               ProcessFidelityCost(est_circ, wrapped_ansatz,
                                   length=opt_kwargs['length'])]
@@ -136,89 +143,52 @@ for i in range(opt_kwargs['nb_iter']):
     # print(results)
     p_runner.update(results)
 
-p_runner.optimizer[0].optimiser._compute_results()
-p_runner.optimizer[0].optimiser.plot_acquisition(path.join(savepath, 'acquisition_plot_1.png'))
-p_runner.optimizer[0].optimiser.plot_convergence(path.join(savepath, 'convergence_plot_1.png'))
+for i in range(N):
+    p_runner.optimizer[i].optimiser._compute_results()
+    p_runner.optimizer[i].optimiser.plot_acquisition(
+        path.join(savepath, f'acquisition_plot_{i+1}.png'))
+    p_runner.optimizer[i].optimiser.plot_convergence(
+        path.join(savepath, f'convergence_plot_{i+1}.png'))
 
-plt.close()
+    plt.close()
 
-p_runner.optimizer[1].optimiser._compute_results()
-p_runner.optimizer[1].optimiser.plot_acquisition(path.join(savepath, 'acquisition_plot_2.png'))
-p_runner.optimizer[1].optimiser.plot_convergence(path.join(savepath, 'convergence_plot_2.png'))
+    (x_seen, y_seen), (x_exp, y_exp) = get_best_from_bo(p_runner.optimizer[i].optimiser)
 
-plt.close()
+    with open(path.join(savepath, f'experiment_data_{i+1}.pickle'), 'wb') as f:
+        pickle.dump(((x_seen, y_seen), (x_exp, y_exp)), f)
 
-
-(x_seen, y_seen), (x_exp, y_exp) = get_best_from_bo(p_runner.optimizer[0].optimiser)
-
-with open(path.join(savepath, 'experiment_data_1.pickle'), 'wb') as f:
-    pickle.dump(((x_seen, y_seen), (x_exp, y_exp)), f)
-
-reg_true_est_circ = TrueFidelityEst(rev_prob_dist, ansatz, nqubits=3,
-                                    num_shots=1024, backend=backend, init_layout=init_layout,
-                                    params=_vals, noise_model=None)
-
-regular_true_F = reg_true_est_circ.calculate_F()
-regular_true_FOM = reg_true_est_circ.calculate_FOM()
-
-print(regular_true_F)
-print(regular_true_FOM)
-
-seen_true_est_circ = TrueFidelityEst(rev_prob_dist, ansatz, nqubits=3,
-                                     num_shots=1024, backend=backend, init_layout=init_layout,
-                                     params=x_seen, noise_model=None)
-
-seen_true_F = seen_true_est_circ.calculate_F()
-seen_true_FOM = seen_true_est_circ.calculate_FOM()
-
-print(seen_true_F)
-print(seen_true_FOM)
-
-exp_opt_true_est_circ = TrueFidelityEst(rev_prob_dist, ansatz, nqubits=3,
+    reg_true_est_circ = TrueFidelityEst(rev_prob_dist, ansatz, nqubits=3,
                                         num_shots=1024, backend=backend, init_layout=init_layout,
-                                        params=x_exp, noise_model=None)
+                                        params=_vals, noise_model=None)
 
-exp_opt_true_F = exp_opt_true_est_circ.calculate_F()
-exp_opt_true_FOM = exp_opt_true_est_circ.calculate_FOM()
+    regular_true_F = reg_true_est_circ.calculate_F()
+    regular_true_FOM = reg_true_est_circ.calculate_FOM()
 
-print(exp_opt_true_F)
-print(exp_opt_true_FOM)
+    print(regular_true_F)
+    print(regular_true_FOM)
 
-with open(path.join(savepath, 'true_fidels_1.pickle'), 'wb') as f:
-    pickle.dump((regular_true_F, seen_true_F, exp_opt_true_F), f)
+    seen_true_est_circ = TrueFidelityEst(rev_prob_dist, ansatz, nqubits=3,
+                                         num_shots=1024, backend=backend, init_layout=init_layout,
+                                         params=x_seen, noise_model=None)
 
+    seen_true_F = seen_true_est_circ.calculate_F()
+    seen_true_FOM = seen_true_est_circ.calculate_FOM()
 
-with open(path.join(savepath, 'true_FOMs_1.pickle'), 'wb') as f:
-    pickle.dump((regular_true_FOM, seen_true_FOM, exp_opt_true_FOM), f)
+    print(seen_true_F)
+    print(seen_true_FOM)
 
-(x_seen, y_seen), (x_exp, y_exp) = get_best_from_bo(p_runner.optimizer[1].optimiser)
+    exp_opt_true_est_circ = TrueFidelityEst(rev_prob_dist, ansatz, nqubits=3,
+                                            num_shots=1024, backend=backend, init_layout=init_layout,
+                                            params=x_exp, noise_model=None)
 
-with open(path.join(savepath, 'experiment_data_2.pickle'), 'wb') as f:
-    pickle.dump(((x_seen, y_seen), (x_exp, y_exp)), f)
+    exp_opt_true_F = exp_opt_true_est_circ.calculate_F()
+    exp_opt_true_FOM = exp_opt_true_est_circ.calculate_FOM()
 
-seen_true_est_circ = TrueFidelityEst(rev_prob_dist, ansatz, nqubits=3,
-                                     num_shots=512, backend=backend, init_layout=init_layout,
-                                     params=x_seen, noise_model=None)
+    print(exp_opt_true_F)
+    print(exp_opt_true_FOM)
 
-seen_true_F = seen_true_est_circ.calculate_F()
-seen_true_FOM = seen_true_est_circ.calculate_FOM()
+    with open(path.join(savepath, f'true_fidels_{i+1}.pickle'), 'wb') as f:
+        pickle.dump((regular_true_F, seen_true_F, exp_opt_true_F), f)
 
-print(seen_true_F)
-print(seen_true_FOM)
-
-exp_opt_true_est_circ = TrueFidelityEst(rev_prob_dist, ansatz, nqubits=3,
-                                        num_shots=512, backend=backend, init_layout=init_layout,
-                                        params=x_exp, noise_model=None)
-
-exp_opt_true_F = exp_opt_true_est_circ.calculate_F()
-exp_opt_true_FOM = exp_opt_true_est_circ.calculate_FOM()
-
-print(exp_opt_true_F)
-print(exp_opt_true_FOM)
-
-with open(path.join(savepath, 'true_fidels_2.pickle'), 'wb') as f:
-    pickle.dump((regular_true_F, seen_true_F, exp_opt_true_F), f)
-
-
-with open(path.join(savepath, 'true_FOMs_2.pickle'), 'wb') as f:
-    pickle.dump((regular_true_FOM, seen_true_FOM, exp_opt_true_FOM), f)
+    with open(path.join(savepath, f'true_FOMs_{i+1}.pickle'), 'wb') as f:
+        pickle.dump((regular_true_FOM, seen_true_FOM, exp_opt_true_FOM), f)
