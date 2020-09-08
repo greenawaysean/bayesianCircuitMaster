@@ -366,26 +366,29 @@ class FlammiaEstimateCircuits(EstimateCircuits):
         _e = 0
         count = 0
         for i in range(len(settings)):
+            # print(idx, settings[i][1], settings[i][2])
             _eig = self.generate_eigenvalue(settings[i][0], settings[i][2])
             _e += _eig * expects[i]
             idx += 1
             if idx == self.p_length:
-                # print(_e, ideal_chi[count])
+                # print(_e, ideal_chi[count], settings[i][0])
                 count += 1
                 _expects.append((2**self.nqubits)*_e/self.p_length)
+                # _expects.append(_e)
                 _e = 0
                 idx = 0
 
         fidelity = 0
         for i, _chi in enumerate(ideal_chi):
             fidelity += _expects[i] / _chi
-        print('len compare', len(ideal_chi),  np.int(self.length/self.p_length))
+        # print('len compare', len(ideal_chi),  np.int(self.length/self.p_length))
+
         fidelity += np.int(self.length/self.p_length) - len(ideal_chi)
-        # fidelity /= np.int(self.length/self.p_length)
-        fidelity /= np.int(len(ideal_chi))
+        fidelity /= np.int(self.length/self.p_length)
+        # fidelity /= np.int(len(ideal_chi))
 
         print(fidelity)
-
+        # return fidelity*2**self.nqubits
         return np.real(fidelity)
 
     def generate_circuits(self):
@@ -415,17 +418,19 @@ class FlammiaEstimateCircuits(EstimateCircuits):
                     _s = GateObj(name='X', qubits=i, parameterise=False, params=None)
             elif _op == '1':
                 if _base[i] == '0':
-                    GateObj(name='H', qubits=i, parameterise=False, params=None)
+                    # GateObj(name='H', qubits=i, parameterise=False, params=None)
+                    _s = GateObj(name='U3', qubits=i, parameterise=False,
+                                 params=[np.pi/2, 0.0, 0.0])
                 elif _base[i] == '1':
-                    _s = GateObj(name='U3', qubits=i, parameterise=True,
-                                 params=[np.pi, np.pi, 0.0])
+                    _s = GateObj(name='U3', qubits=i, parameterise=False,
+                                 params=[np.pi/2, np.pi, 0.0])
             elif _op == '2':
                 if _base[i] == '0':
-                    _s = GateObj(name='U3', qubits=i, parameterise=True,
-                                 params=[np.pi, np.pi/2, 0.0])
+                    _s = GateObj(name='U3', qubits=i, parameterise=False,
+                                 params=[np.pi/2, np.pi/2, 0.0])
                 elif _base[i] == '1':
-                    _s = GateObj(name='U3', qubits=i, parameterise=True,
-                                 params=[np.pi, 3*np.pi/4, 0.0])
+                    _s = GateObj(name='U3', qubits=i, parameterise=False,
+                                 params=[np.pi/2, 3*np.pi/2, 0.0])
             elif _op == '3':
                 if _base[i] == '0':
                     continue

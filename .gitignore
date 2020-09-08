@@ -18,3 +18,7 @@ testing_ordering_prob_dists.py
 bayesian_optimisation.py
 circuit_utils_cluster.py
 testing_batch_runner.py
+fom_v_fidelity.py
+real_CNOT_bayesian_optimisation_meas_err.py
+ising_bayesian_optimisation.py
+real_CNOT_testing_drift.py
