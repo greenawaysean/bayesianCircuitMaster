@@ -269,6 +269,7 @@ class EstimateCircuits:
         """
         settings = [s for s in settings if s != 'X']
         chosen_circs = [self.circuits[_s] for _s in settings]
+        # print(len(chosen_circs))
         exec_circs = [qc.populate_circuits(params) for qc in chosen_circs]
         results = self.quant_inst.execute(exec_circs, had_transpiled=True)
         q_list = [i for i in range(self.nqubits)][::-1]

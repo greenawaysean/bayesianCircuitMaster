@@ -22,3 +22,7 @@ fom_v_fidelity.py
 real_CNOT_bayesian_optimisation_meas_err.py
 ising_bayesian_optimisation.py
 real_CNOT_testing_drift.py
+heisenberg_ED.py
+ising_bayesian_optimisation_trott_target.py
+heisenberg_bayesian_optimisation_trott_target.py
+ising_bayesian_optimisation_trott_target_u3.py
