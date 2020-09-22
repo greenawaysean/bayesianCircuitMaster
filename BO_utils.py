@@ -75,7 +75,7 @@ class ProcessFidelityCost(Cost):
         costs = []
         for j, _sett in enumerate(sett_keys):
             results_dicts = []
-            for i in results_obj.to_dict()['results']:
+            for i in results_obj:#results_obj.to_dict()['results']:
                 if i['header']['name'].split('circuit')[0][-4:] == _sett:
                     results_dicts.append(i['data']['counts'])
             settings = self.ran_settings[_sett]

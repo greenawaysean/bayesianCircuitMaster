@@ -73,11 +73,11 @@ load = True
 if load:
     IBMQ.load_account()
 provider = IBMQ.get_provider(group='samsung', project='imperial')
-backend = provider.get_backend('ibmq_singapore')
-# backend = Aer.get_backend('qasm_simulator')
+# backend = provider.get_backend('ibmq_singapore')
+backend = Aer.get_backend('qasm_simulator')
 
 qreg = QuantumRegister(3, name='qreg')
-init_layout = {0: qreg[0], 1: qreg[1], 6: qreg[2]}
+init_layout = {0: qreg[0], 1: qreg[1], 2: qreg[2]}
 
 est_circ = EstimateCircuits(prob_dist, ansatz, nqubits=3, num_shots=512,
                             backend=backend, init_layout=init_layout)
@@ -134,7 +134,8 @@ results = _batch_handler.submit_exec_res(p_runner)
 #     print(i['header']['name'].split('circuit')[0])
 #     print(i['header']['name'].split('circuit')[0][-4:])
 #     idx += 1
-p_runner.init_optimisers(results)
+res = results.get_counts()
+p_runner.init_optimisers(res)
 for i in range(opt_kwargs['nb_iter']):
     for cst in p_runner.cost_objs:
         cst.reset()

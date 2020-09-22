@@ -611,7 +611,8 @@ def generate_expectation(counts_dict, _ignore=None):
     key_len = [len(key) for key in counts_dict]
     N = key_len[0]
     bitstrings = [''.join(i) for i in itertools.product('01', repeat=N)]
-
+    print(bitstrings)
+    print(counts_dict)
     expect = 0
     # add any missing counts to dictionary to avoid errors
     for string in bitstrings:

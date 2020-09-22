@@ -71,3 +71,23 @@ def qutip_gate(gate_name: str):
         return sigmay()
     elif gate_name == 'Z':
         return sigmaz()
+
+def get_filename(filename):
+    """ Ensures that a unique filename is used with consequential numbering
+    """
+    if not path.exists(filename):
+        makedirs(filename)
+        filename = filename
+    else:
+        test = False
+        idx = 2
+        filename += f'_{idx}'
+        while not test:
+            if not path.exists(filename):
+                makedirs(filename)
+                filename = filename
+                test = True
+            else:
+                idx += 1
+                filename = filename[:-(len(str(idx-1))+1)] + f'_{idx}'
+    return filename
