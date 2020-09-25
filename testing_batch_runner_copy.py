@@ -134,8 +134,8 @@ results = _batch_handler.submit_exec_res(p_runner)
 #     print(i['header']['name'].split('circuit')[0])
 #     print(i['header']['name'].split('circuit')[0][-4:])
 #     idx += 1
-res = results.get_counts()
-p_runner.init_optimisers(res)
+# res = results.get_counts()
+p_runner.init_optimisers(results)
 for i in range(opt_kwargs['nb_iter']):
     for cst in p_runner.cost_objs:
         cst.reset()
