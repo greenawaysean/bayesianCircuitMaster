@@ -2,6 +2,9 @@ __pycache__/
 data/
 GPyOpt_Fork/
 CNOT_TEST_2/
+.ipynb_checkpoints/
+.vs/
+.vscode/
 alt_fom_expansion.py
 alt_fom_expansion_different_unitaries.py
 BO_submission_batch.pbs
@@ -29,7 +32,7 @@ ising_bayesian_optimisation_trott_target_u3.py
 BO_env.yml
 BO_parallel_runner.py
 CNOT_testing_fidelity.py
-CNOT_testing_fidelity_2.py
+CNOT_testing_fidelity2.py
 estimating_fidelity_fom_sim.py
 estimating_fidelity_fom.py
 estimating_fidelity_fom2.py
@@ -49,3 +52,4 @@ subsampling_dict_F.py
 subsampling_dict_FOM.py
 testing_batch_runner_copy.py
 testing_flammia_FOM.py
+plotting_expansions.ipynb
