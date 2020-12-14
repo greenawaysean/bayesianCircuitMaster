@@ -1,6 +1,6 @@
 import numpy as np
-from qutip import (sigmax, sigmay, sigmaz, qeye, basis, gate_expand_1toN, Qobj, tensor,
-                   snot)
+from qutip import (sigmax, sigmay, sigmaz, qeye, basis, gate_expand_1toN,
+                   Qobj, tensor, snot)
 from scipy import linalg
 import copy
 import itertools
@@ -18,11 +18,13 @@ class ProbDist:
         raise NotImplementedError
 
     def pauli_permutations(self):
-        return [''.join(i) for i in itertools.product('0123', repeat=self.nqubits)]
+        return [''.join(i) for i in
+                itertools.product('0123', repeat=self.nqubits)]
 
 
 class ChiProbDist(ProbDist):
-    """Probability distribution based off the work in 10.1103/PhysRevLett.106.230501
+    """Probability distribution based off the work in 
+       10.1103/PhysRevLett.106.230501
     """
 
     def __init__(self, nqubits: int, U: Qobj):
@@ -47,7 +49,8 @@ class ChiProbDist(ProbDist):
                 _trace = _trace.diagonal()
                 chi = _trace.sum(axis=0)
                 chi_dict[_state_idx, _obs_idx] = chi  # np.real(chi)
-                probabilities[(_state_idx, _obs_idx)] = (1/d**3)*np.real(chi)**2
+                probabilities[(_state_idx, _obs_idx)] = (
+                    1/d**3)*np.real(chi)**2
         return probabilities, chi_dict
 
     def generate_states_observables(self):
@@ -102,7 +105,8 @@ class ChiProbDist(ProbDist):
 
 
 class FlammiaProbDist(ProbDist):
-    """Probability distribution based off the work in 10.1103/PhysRevLett.106.230501
+    """Probability distribution based off the work in 
+       10.1103/PhysRevLett.106.230501
     """
 
     def __init__(self, nqubits: int, U: Qobj):
@@ -127,7 +131,7 @@ class FlammiaProbDist(ProbDist):
                 _trace = _trace.diagonal()
                 chi = _trace.sum(axis=0)
                 chi_dict[_state_idx, _obs_idx] = chi  # np.real(chi)
-                probabilities[(_state_idx, _obs_idx)] = (1/d**4)*np.abs(chi**2)
+                probabilities[(_state_idx, _obs_idx)] = np.abs((1/d**4)*chi**2)
         return probabilities, chi_dict
 
     def generate_states_observables(self):
@@ -224,7 +228,8 @@ class FullProbDist(ProbDist):
                 chi = _trace.sum()
                 chi_dict[self.pauli_strings[k], self.pauli_strings[kp]] = chi
                 p = gam*chi
-                probabilities[self.pauli_strings[k], self.pauli_strings[kp]] = p
+                probabilities[self.pauli_strings[k],
+                              self.pauli_strings[kp]] = p
                 print(p)
         return probabilities, chi_dict
 

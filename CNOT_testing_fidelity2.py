@@ -15,7 +15,7 @@ from typing import List, Union
 
 from general_utils import GateObj
 
-from circuit_utils import qCirc, EstimateCircuits, FlammiaEstimateCircuits, apply_gate, generate_expectation
+from circuit_utils import qCirc, EstimateCircuits, apply_gate, generate_expectation
 from alt_fom_expansion_different_unitaries import generate_Bmat
 from probability_distributions_numpy import ChiProbDist, ProbDist
 
@@ -23,84 +23,13 @@ from qiskit.providers.aer.noise import NoiseModel
 from qiskit.providers.aer import noise
 from qiskit.providers.aer.noise.errors import ReadoutError
 
-class TrueFEstSave(FlammiaEstimateCircuits):
-    def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
-                 length: int, num_shots: int, backend: str, init_layout: dict, noise_model=None, params=None):
-
-        super().__init__(prob_dist, V, nqubits, length, num_shots, backend, init_layout, 2**nqubits, noise_model)
-
-        print('super initialised')
-
-        self.counts_dicts = {}
-        self.expects = self.run_circuits(params)
-
-    def run_circuits(self, params=None):
-        print(len(self.circuits))
-        # perms = [''.join(i) for i in itertools.product('0123', repeat=self.nqubits)]
-        # self.B_dict = {}
-        # for i, p in enumerate(perms):
-        #     self.B_dict[p] = i
-        if len(self.circuits) > 900:
-            expects = []
-            length = np.int((len(self.circuits) / 900) + 1)
-            keys = [key for key in self.circuits]
-            print(keys)
-            for i in range(length):
-                _min = min(len(self.circuits)+1, 900 * i + 900)
-                print(i, _min)
-                _keys = keys[900 * i: _min]
-                if params is not None:
-                    exec_circs = [self.circuits[qc].populate_circuits(params) for qc in _keys]
-                else:
-                    exec_circs = [self.circuits[qc].qc for qc in _keys]
-                results = self.quant_inst.execute(
-                    exec_circs, had_transpiled=True)
-
-                q_list = [i for i in range(self.nqubits)][::-1]
-                _exp = []
-                for i, _c in enumerate(_keys):
-                    _ig = []
-                    for j, _b in enumerate(_c[1]):
-                        if _b == '0':
-                            _ig.append(j)
-                    _ignore = [q_list[i] for i in _ig]
-                    # _ignore = []
-                    res = results.get_counts(i)
-                    self.counts_dicts[_c] = copy.deepcopy(res)
-                    # _exp.append(res, _ignore)
-                    _exp.append(generate_expectation(results.get_counts(i), _ignore))
-
-                expects += _exp
-                print(len(expects))
-        else:
-            if params is not None:
-                print('params is not none')
-                exec_circs = [self.circuits[qc].populate_circuits(
-                    params) for qc in self.circuits]
-            else:
-                exec_circs = [self.circuits[qc].qc for qc in self.circuits]
-            results = self.quant_inst.execute(exec_circs, had_transpiled=True)
-            keys = [key for key in self.circuits]
-            q_list = [i for i in range(self.nqubits)][::-1]
-            expects = []
-            for i, _c in enumerate(keys):
-                _ig = []
-                for j, _b in enumerate(_c[1]):
-                    if _b == '0':
-                        _ig.append(j)
-                _ignore = [q_list[i] for i in _ig]
-                # _ignore = []
-                expects.append(generate_expectation(results.get_counts(i), _ignore))
-
-        return expects
-
 class TrueFOMEstSave(EstimateCircuits):
     def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
-                 num_shots: int, backend: str, init_layout: dict, noise_model=None, params=None):
+                 num_shots: int, backend: str, init_layout: dict, savepath: str, noise_model=None, params=None):
 
         super().__init__(prob_dist, V, nqubits, num_shots, backend, init_layout, noise_model)
 
-        self.counts_dicts = {}
+        self.savepath = savepath
         self.expects = self.run_circuits(params)
 
     def run_circuits(self, params=None):
@@ -133,9 +62,6 @@ class TrueFOMEstSave(EstimateCircuits):
                             _ig.append(j)
                     _ignore = [q_list[i] for i in _ig]
                     # _ignore = []
-                    res = results.get_counts(i)
-                    self.counts_dicts[_c] = copy.deepcopy(res)
-                    # _exp.append(res, _ignore)
                     _exp.append(generate_expectation(results.get_counts(i), _ignore))
 
                 # _exp = [
@@ -227,7 +153,6 @@ class TrueFOMEstSave(EstimateCircuits):
         plt.ylabel('Error in expectation value')
         plt.xlim(-1.02, 1.02)
 
-
 class TrueFidelityEst(EstimateCircuits):
     def __init__(self, prob_dist: ProbDist, V: List[GateObj], nqubits: int,
                  num_shots: int, backend: str, init_layout: dict, noise_model=None, params=None):
@@ -242,7 +167,6 @@ class TrueFidelityEst(EstimateCircuits):
         self.B_dict = {}
         for i, p in enumerate(perms):
             self.B_dict[p] = i
-        # print(B_dict)
         if len(self.circuits) > 900:
             expects = []
             length = np.int((len(self.circuits) / 900) + 1)

@@ -6,8 +6,8 @@ from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit, execute
 from qiskit.aqua.quantum_instance import QuantumInstance
 from qiskit.circuit import Parameter
 from qiskit.compiler import transpile
-# from qiskit.ignis.mitigation.measurement import complete_meas_cal, CompleteMeasFitter
-from probability_distributions import ProbDist
+from qiskit.ignis.mitigation.measurement import complete_meas_cal, CompleteMeasFitter
+from probability_distributions_numpy import ProbDist
 from general_utils import GateObj
 
 
@@ -163,6 +163,7 @@ class EstimateCircuits:
         self.backend = backend
         self.init_layout = init_layout
         self.noise_model = noise_model
+        print('about to generate circuits')
         self.circuits = self.generate_circuits()
         self.quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
                                           initial_layout=self.init_layout,
@@ -192,7 +193,7 @@ class EstimateCircuits:
         fidelity += self.length - len(settings)
         fidelity /= self.length
 
-        print(fidelity)
+        # print(fidelity)
 
         return np.real(fidelity)
 
@@ -281,7 +282,8 @@ class EstimateCircuits:
                     _ig.append(j)
             _ignore = [q_list[i] for i in _ig]
             # _ignore = []
-            expects.append(generate_expectation(results.get_counts(i), _ignore))
+            expects.append(generate_expectation(
+                results.get_counts(i), _ignore))
 
         return expects
 
@@ -338,19 +340,20 @@ class EstimateCircuits:
 
         return init_state, observe
 
+
 class ParallelEstimateCircuits:
 
     def __init__(self, EstCircs: List[EstimateCircuits], p_nqubits: int, backend: str,
-                num_shots: int, initial_layout: dict):
+                 num_shots: int, initial_layout: dict):
         self.EstCircs = EstCircs
         self.p_nqubits = p_nqubits
         self.backend = backend
         self.num_shots = num_shots
         self.initial_layout = initial_layout
         self.p_quant_inst = QuantumInstance(backend=self.backend, shots=self.num_shots,
-                                          initial_layout=self.initial_layout,
-                                          skip_qobj_validation=False,
-                                          noise_model=None)
+                                            initial_layout=self.initial_layout,
+                                            skip_qobj_validation=False,
+                                            noise_model=None)
 
     def parallel_fidelities(self, params: List[list], length):
         circs_list = []
@@ -365,7 +368,8 @@ class ParallelEstimateCircuits:
             ideal_chi = [_circ.chi_dict[i] for i in qutip_settings]
             ideal_chi_list.append(ideal_chi)
             chosen_circs = [_circ.circuits[_s] for _s in settings]
-            exec_circs = [qc.populate_circuits(params[k]) for qc in chosen_circs]
+            exec_circs = [qc.populate_circuits(
+                params[k]) for qc in chosen_circs]
             circs_list.append(exec_circs)
 
         circuits = None
@@ -393,7 +397,8 @@ class ParallelEstimateCircuits:
     def generate_expects_list(self, circuits: List, sett_list: List):
         results = self.p_quant_inst.execute(circuits, had_transpiled=True)
         qubit_list = [_c.nqubits for _c in self.EstCircs]
-        all_q_list = [i for i in range(self.p_nqubits)] # THIS MIGHT NEED TO BE [::-1]
+        # THIS MIGHT NEED TO BE [::-1]
+        all_q_list = [i for i in range(self.p_nqubits)]
         expects_list = []
         idx = len(qubit_list)
         for i, _q in enumerate(qubit_list):
@@ -404,10 +409,12 @@ class ParallelEstimateCircuits:
             idx -= _q
             _ignore = [k for k in all_q_list if k not in dont_ignore]
             for j, _s in enumerate(sett_list[i]):
-                expects.append(generate_parallel_expectation(results.get_counts(j), _ignore))
+                expects.append(generate_parallel_expectation(
+                    results.get_counts(j), _ignore))
             expects_list.append(expects)
 
         return expects_list
+
 
 class FlammiaEstimateCircuits(EstimateCircuits):
     """Subclass of EstimateCircuits for implementation of the true fidelity estimation
@@ -458,11 +465,12 @@ class FlammiaEstimateCircuits(EstimateCircuits):
         fidelity /= np.int(self.length/self.p_length)
         # fidelity /= np.int(len(ideal_chi))
 
-        print(fidelity)
+        # print(fidelity)
         # return fidelity*2**self.nqubits
         return np.real(fidelity)
 
     def generate_circuits(self):
+        print('generating_circuits')
         settings = [key for key in self.prob_dict]
         bases = [''.join(i) for i in itertools.product('01',
                                                        repeat=len(settings[0][0]))]
@@ -486,7 +494,8 @@ class FlammiaEstimateCircuits(EstimateCircuits):
                 if _base[i] == '0':
                     continue
                 elif _base[i] == '1':
-                    _s = GateObj(name='X', qubits=i, parameterise=False, params=None)
+                    _s = GateObj(name='X', qubits=i,
+                                 parameterise=False, params=None)
             elif _op == '1':
                 if _base[i] == '0':
                     # GateObj(name='H', qubits=i, parameterise=False, params=None)
@@ -586,7 +595,8 @@ class FlammiaEstimateCircuits(EstimateCircuits):
                     _ig.append(j)
             _ignore = [q_list[i] for i in _ig]
             # _ignore = []
-            expects.append(generate_expectation(results.get_counts(i), _ignore))
+            expects.append(generate_expectation(
+                results.get_counts(i), _ignore))
 
         return expects
 
@@ -703,6 +713,7 @@ def generate_expectation(counts_dict, _ignore=None):
 
     return expect / total_counts
 
+
 def generate_parallel_expectation(counts_dict, _ignore=None):
     """Generate the expectation value for a Pauli string operator
 
@@ -717,7 +728,8 @@ def generate_parallel_expectation(counts_dict, _ignore=None):
     if _ignore is None:
         _ignore = []
     total_counts = 0
-    counts_dict = {key.replace(" ", ""): counts_dict[key] for key in counts_dict}
+    counts_dict = {key.replace(
+        " ", ""): counts_dict[key] for key in counts_dict}
     key_len = [len(key) for key in counts_dict]
     N = key_len[0]
     bitstrings = [''.join(i) for i in itertools.product('01', repeat=N)]
