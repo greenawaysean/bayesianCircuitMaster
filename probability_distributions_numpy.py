@@ -2,6 +2,7 @@ import numpy as np
 from qutip import (sigmax, sigmay, sigmaz, qeye, basis, gate_expand_1toN,
                    Qobj, tensor, snot)
 from scipy import linalg
+from scipy.sparse import csc_matrix
 import copy
 import itertools
 
@@ -197,14 +198,47 @@ class FullProbDist(ProbDist):
         self.Bmat = self.generate_Bmat(nqubits)
         self.probabilities, self.chi_dict = self.get_probs_and_chis()
 
+    # def generate_Bmat(self, nqubits):
+    #     Bmat = np.ndarray([4**nqubits, 4**nqubits])
+    #     for i, op1 in enumerate(self.tens_states):
+    #         for j, op2 in enumerate(self.tens_states):
+    #             _trace = np.dot(op1, op2)
+    #             _trace = _trace.diagonal()
+    #             Bmat[i][j] = _trace.sum()
+    #     return np.linalg.inv(Bmat)
+
     def generate_Bmat(self, nqubits):
-        Bmat = np.ndarray([4**nqubits, 4**nqubits])
-        for i, op1 in enumerate(self.tens_states):
-            for j, op2 in enumerate(self.tens_states):
-                _trace = np.dot(op1, op2)
-                _trace = _trace.diagonal()
-                Bmat[i][j] = _trace.sum()
-        return np.linalg.inv(Bmat)
+        order = nqubits
+        _alpha = 1
+        P = Qobj([[0.25]*4]*4) - 0.5*qeye(4)
+        B_inv = None
+        for k in range(order+1):
+            _beta = (-1)**k
+            s = [qeye(4)]*(nqubits - k) + [P]*k
+            X_k = None
+            track_ops = []
+            for i in itertools.permutations(s):
+                if i in track_ops:
+                    continue
+                track_ops.append(i)
+                if X_k is None:
+                    X_k = tensor(list(i))
+                else:
+                    X_k += tensor(list(i))
+            if B_inv is None:
+                B_inv = _alpha*_beta*X_k
+            else:
+                B_inv += _alpha*_beta*X_k
+        return B_inv.full()
+
+    # def get_probs_and_chis(self):
+    #     d = 2**self.nqubits
+    #     probabilities = {}
+    #     chi_dict = {}
+    #     for i, rho_i in enumerate(self.tens_states):
+    #         for k, W_k in enumerate(self.tens_ops):
+    #             # generate C_ik
+    #             for j, rho_j in enumerate(self.tens_states):
 
     def get_probs_and_chis(self):
         d = 2**self.nqubits
@@ -221,16 +255,22 @@ class FullProbDist(ProbDist):
                     _trace = _trace.diagonal()
                     zeta = _trace.sum()
                     gam += self.Bmat[k][j]*zeta
-                _trace = np.dot(self.U, _statek)
-                _trace = np.dot(_trace, np.conj(np.transpose(self.U)))
-                _trace = np.dot(_trace, _obs)
-                _trace = _trace.diagonal()
-                chi = _trace.sum()
-                chi_dict[self.pauli_strings[k], self.pauli_strings[kp]] = chi
-                p = gam*chi
+                # _trace = np.dot(self.U, _statek)
+                # _trace = np.dot(_trace, np.conj(np.transpose(self.U)))
+                # _trace = np.dot(_trace, _obs)
+                # _trace = _trace.diagonal()
+                # chi = _trace.sum()
+                chi_dict[self.pauli_strings[k],
+                         self.pauli_strings[kp]] = np.sign(gam)
+                p = np.abs(gam)
                 probabilities[self.pauli_strings[k],
                               self.pauli_strings[kp]] = p
-                print(p)
+        _keys = probabilities.keys()
+        _vals = [probabilities[k] for k in _keys]
+        norm = np.sum(_vals)
+        chi_dict = {key: chi_dict[key]*norm for i, key in enumerate(_keys)}
+        probabilities = {key: probabilities[key]/norm for key in _keys}
+
         return probabilities, chi_dict
 
     def get_tensored_ops(self):

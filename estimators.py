@@ -6,7 +6,7 @@ import numpy as np
 from qutip import (Qobj, basis, gate_expand_1toN, qeye,
                    sigmax, sigmay, sigmaz, snot, tensor, rx, ry, rz, cnot)
 from general_utils import GateObj, U_from_hamiltonian
-from probability_distributions_numpy import ProbDist, ChiProbDist, FlammiaProbDist
+from probability_distributions_numpy import ProbDist, ChiProbDist, FlammiaProbDist, FullProbDist
 
 
 class BaseAnsatz:
@@ -156,6 +156,15 @@ class QutipEstimator(Estimator):
         return tensor(operator)
 
 
+def generate_u3(theta, phi, lam):
+    a = np.cos(theta/2)
+    b = -np.exp(1j*lam)*np.sin(theta/2)
+    c = np.exp(1j*phi)*np.sin(theta/2)
+    d = np.exp(1j*(phi+lam))*np.cos(theta/2)
+
+    return Qobj([[a, b], [c, d]])
+
+
 class QutipFlammiaEstimator(Estimator):
     def __init__(self, prob_dist: ProbDist, nqubits: int, ansatz: QutipAnsatz):
         super().__init__(prob_dist, nqubits, ansatz)
@@ -198,13 +207,62 @@ class QutipFlammiaEstimator(Estimator):
         return tensor(operator)
 
 
-def generate_u3(theta, phi, lam):
-    a = np.cos(theta/2)
-    b = -np.exp(1j*lam)*np.sin(theta/2)
-    c = np.exp(1j*phi)*np.sin(theta/2)
-    d = np.exp(1j*(phi+lam))*np.cos(theta/2)
+class FullQutipEstimator(QutipEstimator):
+    def __init__(self, prob_dist: ProbDist, nqubits: int, ansatz: QutipAnsatz):
+        super().__init__(prob_dist, nqubits, ansatz)
 
-    return Qobj([[a, b], [c, d]])
+    def calculate_fom(self, params: List[float], length: int):
+        self.length = length
+        settings = self.select_settings()
+        ideal_chi = [self.chi_dict[i] for i in settings]
+        expects = self.evaluate_expectations(settings, params)
+        norm = np.sum(self.probs)
+        fom = 0
+        for i, _chi in enumerate(ideal_chi):
+            fom += (1/2**(3*self.nqubits))*expects[i]*_chi
+        fom += self.length - len(settings)
+        fom /= self.length
+
+        return np.real(fom)
+
+    def generate_states_bases(self):
+        states = {}
+        bases = {}
+        for sett in self.keys:
+            state = sett[0]
+            states[state] = self.get_state(state)
+            bases[state] = self.get_basis(state)
+
+        return states, bases
+
+    def get_state(self, state):
+        _ops = []
+        for i in state:
+            if i == '0':
+                _ops.append(qeye(2))
+            if i == '1':
+                _ops.append(generate_u3(np.arccos(-1/3), 0, 0))
+            if i == '2':
+                _ops.append(generate_u3(np.arccos(-1/3), 2*np.pi/3, 0))
+            if i == '3':
+                _ops.append(generate_u3(np.arccos(-1/3), 4*np.pi/3, 0))
+        _op = tensor(_ops)
+
+        return _op
+
+    def get_basis(self, op):
+        operator = []
+        for i in op:
+            if i == '0':
+                operator.append(qeye(2))
+            elif i == '1':
+                operator.append(sigmax())
+            elif i == '2':
+                operator.append(sigmay())
+            elif i == '3':
+                operator.append(sigmaz())
+
+        return tensor(operator)
 
 
 if __name__ == "__main__":
@@ -238,9 +296,10 @@ if __name__ == "__main__":
                 params.append(2*t/tsteps)
                 ansatz.append(GateObj('CNOT', [i, i+1], False))
 
-    prob_dist = FlammiaProbDist(nqubits=nqubits, U=ideal_U)
+    prob_dist = FullProbDist(nqubits=nqubits, U=ideal_U)
     q_ansatz = QutipAnsatz(ansatz, nqubits)
 
-    q_est = QutipFlammiaEstimator(prob_dist, nqubits, q_ansatz)
+    q_est = FullQutipEstimator(prob_dist, nqubits, q_ansatz)
 
-    print(q_est.calculate_fom(params, 1000))
+    for i in range(100):
+        print(q_est.calculate_fom(params, 100))
