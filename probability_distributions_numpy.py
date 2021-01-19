@@ -24,8 +24,8 @@ class ProbDist:
 
 
 class ChiProbDist(ProbDist):
-    """Probability distribution based off the work in 
-       10.1103/PhysRevLett.106.230501
+    """Probability distribution for estimating the 0-fidelity based on an 
+    adaptation of 10.1103/PhysRevLett.106.230501
     """
 
     def __init__(self, nqubits: int, U: Qobj):
@@ -106,7 +106,7 @@ class ChiProbDist(ProbDist):
 
 
 class FlammiaProbDist(ProbDist):
-    """Probability distribution based off the work in 
+    """Probability distribution for estimating the process fidelity as in
        10.1103/PhysRevLett.106.230501
     """
 
@@ -187,7 +187,7 @@ class FlammiaProbDist(ProbDist):
 
 
 class FullProbDist(ProbDist):
-    """Probability distribution derived by me.
+    """Alternative probability distribution (not currently working)
     """
 
     def __init__(self, nqubits: int, U: Qobj):

@@ -208,6 +208,8 @@ class QutipFlammiaEstimator(Estimator):
 
 
 class FullQutipEstimator(QutipEstimator):
+    """Not currently working"""
+
     def __init__(self, prob_dist: ProbDist, nqubits: int, ansatz: QutipAnsatz):
         super().__init__(prob_dist, nqubits, ansatz)
 
@@ -216,7 +218,6 @@ class FullQutipEstimator(QutipEstimator):
         settings = self.select_settings()
         ideal_chi = [self.chi_dict[i] for i in settings]
         expects = self.evaluate_expectations(settings, params)
-        norm = np.sum(self.probs)
         fom = 0
         for i, _chi in enumerate(ideal_chi):
             fom += (1/2**(3*self.nqubits))*expects[i]*_chi
@@ -296,10 +297,10 @@ if __name__ == "__main__":
                 params.append(2*t/tsteps)
                 ansatz.append(GateObj('CNOT', [i, i+1], False))
 
-    prob_dist = FullProbDist(nqubits=nqubits, U=ideal_U)
+    prob_dist = ChiProbDist(nqubits=nqubits, U=ideal_U)
     q_ansatz = QutipAnsatz(ansatz, nqubits)
 
-    q_est = FullQutipEstimator(prob_dist, nqubits, q_ansatz)
+    q_est = QutipEstimator(prob_dist, nqubits, q_ansatz)
 
     for i in range(100):
         print(q_est.calculate_fom(params, 100))

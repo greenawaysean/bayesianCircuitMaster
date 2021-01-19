@@ -53,3 +53,4 @@ subsampling_dict_FOM.py
 testing_batch_runner_copy.py
 testing_flammia_FOM.py
 plotting_expansions.ipynb
+nmr_optimisation_sim.py
